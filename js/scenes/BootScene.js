@@ -22,7 +22,7 @@ export default class BootScene extends Phaser.Scene {
 
         // Spritesheets (Ensure paths and frame dimensions are correct)
         this.load.spritesheet('wizard', 'assets/sprites/wizard_spritesheet.png', {
-            frameWidth: 64,
+            frameWidth: 56, // Corrected width
             frameHeight: 64
         });
         this.load.spritesheet('enemies', 'assets/sprites/enemies_spritesheet.png', {
