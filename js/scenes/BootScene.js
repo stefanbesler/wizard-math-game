@@ -18,7 +18,7 @@ export default class BootScene extends Phaser.Scene {
         // Backgrounds
         this.load.image('titleScreen', 'assets/backgrounds/title_screen.png');
         // Make sure you have a placeholder image at this path
-        this.load.image('gameBackground', 'assets/backgrounds/placeholder_background.png');
+        this.load.image('gameBackground', 'assets/backgrounds/background.png');
 
         // Spritesheets (Ensure paths and frame dimensions are correct)
         this.load.spritesheet('wizard', 'assets/sprites/wizard_spritesheet.png', {
