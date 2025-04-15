@@ -6,6 +6,7 @@ export default class GameScene extends Phaser.Scene {
         this.wizard = null;
         this.enemies = null; // Physics group for enemies
         this.projectiles = null; // Physics group for spells (if needed later)
+        this.particles = null; // Particle emitter manager
 
         // UI Elements
         this.questionText = null;
@@ -50,6 +51,10 @@ export default class GameScene extends Phaser.Scene {
         // --- Enemies ---
         // Create a physics group for enemies to handle movement and collision
         this.enemies = this.physics.add.group();
+
+        // --- Particles ---
+        // Initialize particle manager using the loaded texture
+        this.particles = this.add.particles('particle_sparkle');
 
         // --- UI Elements ---
         // Question Text (Top Center)
@@ -208,21 +213,32 @@ export default class GameScene extends Phaser.Scene {
 
         if (closestEnemy) {
             console.log('Defeating enemy at x:', closestEnemy.x);
-            // Add visual effect (e.g., flash, particles) at enemy position
-            // Simple flash:
-            closestEnemy.setTint(0xffffff); // White flash
-            this.time.delayedCall(100, () => {
-                if(closestEnemy.active) closestEnemy.clearTint(); // Remove tint if enemy still exists
-             });
-             // Maybe play a hit sound
-             // this.sound.play('enemyHitSound');
 
-            // Destroy the enemy after a short delay (allows effect to show)
-            this.time.delayedCall(150, () => {
-                 if(closestEnemy.active) closestEnemy.destroy();
+            // --- Create Particle Explosion at Enemy Position ---
+            const emitter = this.particles.createEmitter({
+                speed: { min: 50, max: 150 }, // Speed of particles
+                angle: { min: 0, max: 360 },  // Emit in all directions
+                scale: { start: 0.6, end: 0 }, // Start larger, shrink to nothing
+                blendMode: 'ADD',             // Bright additive blending
+                lifespan: 400,                // How long particles live (ms)
+                gravityY: 200,                // Optional: slight downward pull
+                quantity: 15                  // Number of particles
             });
+
+            // Position the emitter on the enemy and make it explode once
+            emitter.setPosition(closestEnemy.x, closestEnemy.y - closestEnemy.height * closestEnemy.scaleY / 2); // Emit from center
+            emitter.explode(); // Explode particles immediately
+
+            // Maybe play a hit sound
+            // this.sound.play('enemyHitSound');
+
+            // Destroy the enemy immediately (particle effect is instant)
+            closestEnemy.destroy();
+
         } else {
-            console.log('Correct answer, but no enemies in range.');
+            console.log('Correct answer, but no enemies to target.');
+            // Still play cast animation even if no target? Your choice.
+            // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
         }
 
         // Generate the next question immediately

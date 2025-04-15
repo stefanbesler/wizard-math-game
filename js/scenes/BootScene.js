@@ -30,6 +30,10 @@ export default class BootScene extends Phaser.Scene {
             frameHeight: 64
         });
 
+        // Particle image (replace with your actual particle asset)
+        // TODO: Add an image file at 'assets/sprites/particle_sparkle.png'
+        this.load.image('particle_sparkle', 'assets/sprites/particle_sparkle.png');
+
         // Placeholder for Sounds (Uncomment and add paths when you have sound files)
         // this.load.audio('correctSound', 'assets/sounds/correct.wav');
         // this.load.audio('castSound', 'assets/sounds/cast.wav');
