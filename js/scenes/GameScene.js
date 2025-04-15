@@ -116,13 +116,7 @@ export default class GameScene extends Phaser.Scene {
                 // Move enemy left based on speed and delta time
                 enemy.x -= (this.enemySpeed / 1000) * delta;
 
-                // Play animation if applicable
-                if (enemy.texture.key === 'enemies' && (enemy.frame.name === 0 || enemy.frame.name === 3)) {
-                     if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== 'ghost_float') {
-                        enemy.play('ghost_float');
-                     }
-                }
-                // Add similar checks for other enemy animations if defined
+                // Note: Animation should be playing automatically if started correctly in spawnEnemy
 
                 // --- Game Over Check ---
                 if (enemy.x < this.gameOverLineX) {
@@ -265,23 +259,29 @@ export default class GameScene extends Phaser.Scene {
         const yPos = this.cameras.main.height - 80; // Match wizard Y pos (adjust slightly if needed)
         const startX = this.cameras.main.width + Phaser.Math.Between(50, 100); // Start slightly varied off-screen right
 
-        // Choose a random enemy type (frame index 0-3)
-        const enemyFrame = Phaser.Math.Between(0, 3);
+        // Choose a random enemy type (0: shadow, 1: ghost, 2: plant)
+        const enemyType = Phaser.Math.Between(0, 2);
+        const enemyTypes = [
+            { frame: 0, anim: 'shadow_idle', name: 'Shadow' },
+            { frame: 3, anim: 'ghost_idle', name: 'Ghost' },
+            { frame: 6, anim: 'plant_idle', name: 'Plant' }
+        ];
+        const selectedEnemy = enemyTypes[enemyType];
 
-        // Create the enemy sprite using the physics group
-        const enemy = this.enemies.create(startX, yPos, 'enemies', enemyFrame);
+        // Create the enemy sprite using the physics group, starting at the first frame of its animation
+        const enemy = this.enemies.create(startX, yPos, 'enemies', selectedEnemy.frame);
         enemy.setOrigin(0.5, 1); // Bottom-center origin
         enemy.setScale(2.0); // Adjust scale if needed (make smaller/larger)
         enemy.setCollideWorldBounds(false); // Allow them to move off-screen
+
+        // Play the correct animation for the spawned enemy type
+        enemy.play(selectedEnemy.anim);
 
         // Optional: Give enemies slightly varied speed
         // let speedVariation = Phaser.Math.FloatBetween(0.9, 1.2);
         // enemy.speedMultiplier = speedVariation; // You'd use this in the update loop
 
-        // Set physics properties (optional, can move manually in update)
-        // enemy.setVelocityX(-this.enemySpeed); // Set initial velocity if using physics for movement
-
-        console.log(`Spawned enemy type ${enemyFrame} at x: ${startX.toFixed(0)}`);
+        console.log(`Spawned enemy type ${selectedEnemy.name} (anim: ${selectedEnemy.anim}) at x: ${startX.toFixed(0)}`);
     }
 
     triggerGameOver(enemy) {
