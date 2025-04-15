@@ -48,3 +48,53 @@ button {
     /* border: 2px solid #eeba30; */
     /* border-radius: 5px; */
 }
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f0f0f0; /* Platzhalter-Hintergrund */
+    margin: 0;
+}
+
+header, main, footer {
+    width: 90%;
+    max-width: 600px;
+    margin: 1em 0;
+    text-align: center;
+}
+
+#options-container {
+    margin-top: 1em;
+    display: flex;
+    justify-content: space-around;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+    margin: 5px;
+}
+
+#feedback-container {
+    margin-top: 1em;
+    min-height: 1.5em; /* Platz für Feedback-Text */
+    font-weight: bold;
+}
+
+/* Platzhalter für magische Optik */
+body {
+    /* Beispiel: Hintergrundbild oder Farbverlauf */
+    /* background: linear-gradient(to bottom, #1e3a5f, #3c6e71); */
+    /* color: #f5f5f5; */
+}
+
+button {
+    /* Beispiel: Magischer Button-Stil */
+    /* background-color: #740001; /* Gryffindor Rot */
+    /* color: #eeba30; /* Gold */
+    /* border: 2px solid #eeba30; */
+    /* border-radius: 5px; */
+}
