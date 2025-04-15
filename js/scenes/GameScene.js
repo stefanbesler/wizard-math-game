@@ -53,8 +53,8 @@ export default class GameScene extends Phaser.Scene {
         this.enemies = this.physics.add.group();
 
         // --- Particles ---
-        // Initialize particle manager using the loaded texture
-        this.particles = this.add.particles('particle_sparkle');
+        // Initialize particle manager using the wizard spritesheet
+        this.particles = this.add.particles('wizard');
 
         // --- UI Elements ---
         // Question Text (Top Center)
@@ -215,14 +215,16 @@ export default class GameScene extends Phaser.Scene {
             console.log('Defeating enemy at x:', closestEnemy.x);
 
             // --- Create Particle Explosion at Enemy Position ---
+            // Use frame 4 from the 'wizard' spritesheet (wand sparkle)
             const emitter = this.particles.createEmitter({
-                speed: { min: 50, max: 150 }, // Speed of particles
+                frame: 4,                     // Use the wizard's wand sparkle frame
+                speed: { min: 60, max: 180 }, // Speed of particles
                 angle: { min: 0, max: 360 },  // Emit in all directions
-                scale: { start: 0.6, end: 0 }, // Start larger, shrink to nothing
+                scale: { start: 1.0, end: 0 }, // Start at normal size, shrink to nothing
                 blendMode: 'ADD',             // Bright additive blending
-                lifespan: 400,                // How long particles live (ms)
-                gravityY: 200,                // Optional: slight downward pull
-                quantity: 15                  // Number of particles
+                lifespan: 350,                // How long particles live (ms)
+                gravityY: 150,                // Optional: slight downward pull
+                quantity: 10                  // Number of particles
             });
 
             // Position the emitter on the enemy and make it explode once
