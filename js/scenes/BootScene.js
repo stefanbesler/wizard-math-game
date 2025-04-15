@@ -26,7 +26,7 @@ export default class BootScene extends Phaser.Scene {
             frameHeight: 64
         });
         this.load.spritesheet('enemies', 'assets/sprites/enemies_spritesheet.png', {
-            frameWidth: 64,
+            frameWidth: 60, // Corrected width
             frameHeight: 64
         });
 
