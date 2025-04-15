@@ -75,44 +75,50 @@ export default class BootScene extends Phaser.Scene {
     }
 
     createWizardAnimations() {
-        // Idle animation using frames 0-4
+        // Based on wizard_spritesheet.png (3x2 grid)
+        // Idle animation using frames 0-2 (top row)
         this.anims.create({
             key: 'wizard_idle',
-            frames: this.anims.generateFrameNumbers('wizard', { start: 0, end: 4 }),
-            frameRate: 5, // Adjust speed (frames per second)
+            frames: this.anims.generateFrameNumbers('wizard', { start: 0, end: 2 }),
+            frameRate: 4, // Adjust speed as needed
             repeat: -1    // Loop indefinitely
         });
 
-        // Cast animation using frame 5
+        // Cast animation using frames 3-4 (bottom row, first two)
         this.anims.create({
             key: 'wizard_cast',
-            frames: this.anims.generateFrameNumbers('wizard', { start: 5, end: 5 }),
-            frameRate: 10, // Faster for a quick cast effect
+            frames: this.anims.generateFrameNumbers('wizard', { start: 3, end: 4 }),
+            frameRate: 8, // Adjust speed as needed
             repeat: 0     // Play only once
         });
+        // Frame 5 could be used for 'wizard_hurt' if needed later
     }
 
     createEnemyAnimations() {
-        // Example: Simple floating animation for the ghosts (frames 0 and 3)
+        // Based on enemies_spritesheet.png (3x3 grid)
+
+        // Shadow enemy animation (frames 0-2)
         this.anims.create({
-            key: 'ghost_float',
-            frames: this.anims.generateFrameNumbers('enemies', { frames: [0, 3] }), // Cycle between the two ghost frames
-            frameRate: 3,
+            key: 'shadow_idle',
+            frames: this.anims.generateFrameNumbers('enemies', { start: 0, end: 2 }),
+            frameRate: 5, // Adjust speed as needed
             repeat: -1
         });
 
-        // Add animations for other enemies if they have multiple frames
-        // this.anims.create({
-        //     key: 'plant_chomp',
-        //     frames: this.anims.generateFrameNumbers('enemies', { start: ?, end: ? }), // Assuming plant has animation frames
-        //     frameRate: 5,
-        //     repeat: -1
-        // });
-        // this.anims.create({
-        //     key: 'shadow_morph',
-        //     frames: this.anims.generateFrameNumbers('enemies', { start: ?, end: ? }), // Assuming shadow has animation frames
-        //     frameRate: 4,
-        //     repeat: -1
-        // });
+        // Ghost enemy animation (frames 3-5)
+        this.anims.create({
+            key: 'ghost_idle',
+            frames: this.anims.generateFrameNumbers('enemies', { start: 3, end: 5 }),
+            frameRate: 4, // Adjust speed as needed
+            repeat: -1
+        });
+
+        // Plant enemy animation (frames 6-8)
+        this.anims.create({
+            key: 'plant_idle',
+            frames: this.anims.generateFrameNumbers('enemies', { start: 6, end: 8 }),
+            frameRate: 3, // Adjust speed as needed
+            repeat: -1
+        });
     }
 }
