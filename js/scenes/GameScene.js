@@ -52,9 +52,8 @@ export default class GameScene extends Phaser.Scene {
         // Create a physics group for enemies to handle movement and collision
         this.enemies = this.physics.add.group();
 
-        // --- Particles ---
-        // Initialize particle manager using the wizard spritesheet
-        this.particles = this.add.particles('wizard');
+        // --- Particles --- (Removing - will use tweens instead)
+        // this.particles = this.add.particles('wizard');
 
         // --- UI Elements ---
         // Question Text (Top Center)
@@ -214,28 +213,30 @@ export default class GameScene extends Phaser.Scene {
         if (closestEnemy) {
             console.log('Defeating enemy at x:', closestEnemy.x);
 
-            // --- Create Particle Explosion at Enemy Position ---
-            // Use frame 4 from the 'wizard' spritesheet (wand sparkle)
-            const emitter = this.particles.createEmitter({
-                frame: 4,                     // Use the wizard's wand sparkle frame
-                speed: { min: 60, max: 180 }, // Speed of particles
-                angle: { min: 0, max: 360 },  // Emit in all directions
-                scale: { start: 1.0, end: 0 }, // Start at normal size, shrink to nothing
-                blendMode: 'ADD',             // Bright additive blending
-                lifespan: 350,                // How long particles live (ms)
-                gravityY: 150,                // Optional: slight downward pull
-                quantity: 10                  // Number of particles
-            });
+            // --- Use Built-in Effects ---
+            // 1. Camera Flash
+            this.cameras.main.flash(150, 255, 255, 255); // duration, r, g, b (white flash)
 
-            // Position the emitter on the enemy and make it explode once
-            emitter.setPosition(closestEnemy.x, closestEnemy.y - closestEnemy.height * closestEnemy.scaleY / 2); // Emit from center
-            emitter.explode(); // Explode particles immediately
+            // 2. Enemy Tween (Scale up and Fade out)
+            this.tweens.add({
+                targets: closestEnemy,
+                scaleX: closestEnemy.scaleX * 1.5, // Scale up slightly
+                scaleY: closestEnemy.scaleY * 1.5,
+                alpha: 0, // Fade out
+                duration: 200, // milliseconds
+                ease: 'Power2', // Phaser easing function
+                onComplete: () => {
+                    // Destroy the enemy *after* the tween finishes
+                    if (closestEnemy.active) { // Check if it wasn't already destroyed somehow
+                       closestEnemy.destroy();
+                    }
+                }
+            });
 
             // Maybe play a hit sound
             // this.sound.play('enemyHitSound');
 
-            // Destroy the enemy immediately (particle effect is instant)
-            closestEnemy.destroy();
+            // Note: Enemy is destroyed by the tween's onComplete callback now
 
         } else {
             console.log('Correct answer, but no enemies to target.');
