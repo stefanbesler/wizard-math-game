@@ -101,10 +101,10 @@ export default class GameScene extends Phaser.Scene {
         // Fade in the scene
         this.cameras.main.fadeIn(500, 0, 0, 0);
 
-         // Optional: Start background music if not started already
-         // if (!this.sound.get('backgroundMusic')?.isPlaying) {
-         //    this.sound.play('backgroundMusic', { loop: true, volume: 0.5 });
-         // }
+         // Start background music for the game scene
+         if (!this.sound.get('gameMusic')?.isPlaying) {
+            this.sound.play('gameMusic', { loop: true, volume: 0.4 }); // Adjust volume as needed
+         }
     }
 
     update(time, delta) {
@@ -196,12 +196,10 @@ export default class GameScene extends Phaser.Scene {
 
     handleCorrectAnswer() {
         console.log('Correct!');
+        this.sound.play('correctSound'); // Play correct answer sound
+
         // Play wizard casting animation
         this.wizard.play('wizard_cast');
-
-        // Play sound effect
-        // this.sound.play('correctSound');
-        // this.sound.play('castSound', { delay: 0.1 }); // Slightly delayed cast sound
 
         // Increase score
         this.score += 10;
@@ -212,6 +210,12 @@ export default class GameScene extends Phaser.Scene {
 
         if (closestEnemy) {
             console.log('Defeating enemy at x:', closestEnemy.x);
+
+            // Play cast sound
+            this.sound.play('castSound');
+
+            // Play enemy hit sound slightly delayed
+            this.sound.play('enemyHitSound', { delay: 0.15 }); // Delay in seconds
 
             // --- Use Built-in Effects ---
             // 1. Camera Flash
@@ -232,9 +236,6 @@ export default class GameScene extends Phaser.Scene {
                     }
                 }
             });
-
-            // Maybe play a hit sound
-            // this.sound.play('enemyHitSound');
 
             // Note: Enemy is destroyed by the tween's onComplete callback now
 
@@ -261,7 +262,7 @@ export default class GameScene extends Phaser.Scene {
         });
 
         // Play a 'wrong' sound effect
-        // this.sound.play('wrongSound'); // You'll need to load this sound
+        this.sound.play('wrongSound');
 
         // Do NOT generate a new question - let the player retry
         // Optional: Make enemies move slightly faster or closer?
@@ -330,8 +331,8 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // Stop background music and play game over sound
-        // this.sound.stopAll();
-        // this.sound.play('gameOverSound');
+        this.sound.stopAll();
+        this.sound.play('gameOverSound');
 
         // Display Game Over message
         this.add.rectangle(this.cameras.main.width / 2, this.cameras.main.height / 2, 500, 200, 0x000000, 0.8)
@@ -370,6 +371,7 @@ export default class GameScene extends Phaser.Scene {
             this.input.once('pointerdown', () => {
                 console.log('Restarting game...');
                 this.isGameOver = false; // Reset flag before restarting
+                this.sound.stopAll(); // Stop game over sound before restarting
                 // Fade out and restart the scene
                 this.cameras.main.fadeOut(500, 0, 0, 0, (camera, progress) => {
                     if (progress === 1) {

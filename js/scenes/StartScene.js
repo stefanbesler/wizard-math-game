@@ -10,6 +10,12 @@ export default class StartScene extends Phaser.Scene {
         this.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'titleScreen')
             .setOrigin(0.5); // Center the image based on its middle point
 
+        // --- Music ---
+        // Start background music if not already playing
+        if (!this.sound.get('startMusic')?.isPlaying) {
+            this.sound.play('startMusic', { loop: true, volume: 0.6 });
+        }
+
         // --- Interaction ---
         // Make the entire screen clickable to start the game
         this.input.on('pointerdown', () => {
@@ -17,9 +23,7 @@ export default class StartScene extends Phaser.Scene {
             // Optional: Add a fade out effect
             this.cameras.main.fadeOut(500, 0, 0, 0, (camera, progress) => {
                 if (progress === 1) {
-                    // Optional: Start background music for the game here if needed
-                    // this.sound.stopAll(); // Stop any menu music
-                    // this.sound.play('backgroundMusic', { loop: true, volume: 0.5 });
+                    this.sound.stopAll(); // Stop menu music
                     this.scene.start('GameScene');
                 }
             });

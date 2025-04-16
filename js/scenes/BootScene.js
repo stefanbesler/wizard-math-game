@@ -34,11 +34,16 @@ export default class BootScene extends Phaser.Scene {
         // this.load.image('particle_sparkle', 'assets/sprites/particle_sparkle.png');
 
         // Placeholder for Sounds (Uncomment and add paths when you have sound files)
-        // this.load.audio('correctSound', 'assets/sounds/correct.wav');
-        // this.load.audio('castSound', 'assets/sounds/cast.wav');
-        // this.load.audio('enemyHitSound', 'assets/sounds/hit.wav');
-        // this.load.audio('gameOverSound', 'assets/sounds/gameover.wav');
-        // this.load.audio('backgroundMusic', 'assets/sounds/music.mp3');
+        // Music
+        this.load.audio('startMusic', 'assets/music/Start.mp3');
+        this.load.audio('gameMusic', 'assets/music/Dark_Forest.mp3');
+
+        // Sound Effects
+        this.load.audio('castSound', 'assets/sounds/foom.wav');
+        this.load.audio('enemyHitSound', 'assets/sounds/explosion.wav');
+        this.load.audio('gameOverSound', 'assets/sounds/gameover.wav');
+        this.load.audio('correctSound', 'assets/sounds/pickupCoin.wav');
+        this.load.audio('wrongSound', 'assets/sounds/hitHurt.wav');
 
 
         // --- Loading Progress --- (Optional but nice)
