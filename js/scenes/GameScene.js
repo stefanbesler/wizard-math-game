@@ -392,12 +392,6 @@ export default class GameScene extends Phaser.Scene {
             // Note: Enemy destruction is handled within its takeDamage/die methods now.
             // The score increase was moved inside the 'defeated' block.
 
-        } else {
-             console.log('Correct answer, but no active enemies to target.');
-             // Still play cast animation even if no target? Your choice.
-             // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
-        }
-
         // Generate the next question immediately
         this.generateQuestion();
     }
