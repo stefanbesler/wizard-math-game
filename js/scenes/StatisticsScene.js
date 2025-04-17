@@ -3,9 +3,9 @@ export default class StatisticsScene extends Phaser.Scene {
         super('StatisticsScene');
         this.sessionStats = [];
         this.selectedTables = [];
-        this.difficultyScores = {}; // Store scores as { '1x1': score, '1x2': score, ... }
-        this.maxScore = -Infinity; // For normalization
-        this.minScore = Infinity;  // For normalization
+        // Store stats as { '1x1': { attempts: 0, errors: 0, totalTime: 0, category: 'none' }, ... }
+        this.factStats = {};
+        this.FAST_THRESHOLD_MS = 3500; // Time in ms to qualify as 'fast' (adjust as needed)
     }
 
     init(data) {
@@ -13,9 +13,7 @@ export default class StatisticsScene extends Phaser.Scene {
         this.sessionStats = data.sessionStats || [];
         // Ensure selectedTables is always an array, even if not passed correctly
         this.selectedTables = Array.isArray(data.selectedTables) ? data.selectedTables : [];
-        this.difficultyScores = {}; // Reset scores each time scene is entered
-        this.maxScore = -Infinity;
-        this.minScore = Infinity;
+        this.factStats = {}; // Reset stats each time scene is entered
     }
 
     preload() {
@@ -43,9 +41,6 @@ export default class StatisticsScene extends Phaser.Scene {
         // --- Display Grid ---
         this.displayGrid();
 
-        // --- Display Legend ---
-        this.displayLegend();
-
         // --- Navigation Buttons ---
         this.displayButtons();
 
@@ -54,11 +49,12 @@ export default class StatisticsScene extends Phaser.Scene {
     }
 
     calculateScores() {
-        // Initialize scores for all 1x1 to 10x10 facts
+        // Initialize stats for all 1x1 to 10x10 facts
         for (let i = 1; i <= 10; i++) {
             for (let j = 1; j <= 10; j++) {
                 const key = `${i}x${j}`;
-                this.difficultyScores[key] = { score: 0, attempts: 0, correct: 0, totalTime: 0 };
+                // Initialize with category 'none'
+                this.factStats[key] = { attempts: 0, errors: 0, totalTimeCorrect: 0, correctCount: 0, category: 'none' };
             }
         }
 
@@ -67,53 +63,39 @@ export default class StatisticsScene extends Phaser.Scene {
             // Ensure numbers are within 1-10 range for the grid
             if (stat.num1 >= 1 && stat.num1 <= 10 && stat.num2 >= 1 && stat.num2 <= 10) {
                 const key = `${stat.num1}x${stat.num2}`;
-                const entry = this.difficultyScores[key];
+                const entry = this.factStats[key];
 
                 entry.attempts++;
-                entry.totalTime += stat.timeTaken;
-
                 if (stat.correct) {
-                    entry.correct++;
-                    // Decrease score for correct answers, more decrease for faster answers
-                    // Base decrease + bonus for speed (lower time = higher bonus)
-                    // Avoid division by zero; use Math.max with a minimum time (e.g., 100ms)
-                    const timeFactor = 5000 / Math.max(stat.timeTaken, 100); // Adjust 5000 as needed
-                    entry.score -= (1 + timeFactor); // Base decrease of 1 + time bonus
+                    entry.correctCount++;
+                    entry.totalTimeCorrect += stat.timeTaken;
                 } else {
-                    // Increase score significantly for wrong answers
-                    entry.score += 10; // Adjust penalty as needed
+                    entry.errors++;
                 }
             }
         });
 
-        // Normalize scores (find min/max of the calculated scores)
-        let hasScores = false;
-        for (const key in this.difficultyScores) {
-            const score = this.difficultyScores[key].score;
-             // Only consider facts that were actually attempted for min/max normalization
-            if (this.difficultyScores[key].attempts > 0) {
-                this.minScore = Math.min(this.minScore, score);
-                this.maxScore = Math.max(this.maxScore, score);
-                hasScores = true;
+        // Determine category for each fact
+        for (const key in this.factStats) {
+            const entry = this.factStats[key];
+            if (entry.attempts > 0) {
+                if (entry.errors > 0) {
+                    entry.category = 'incorrect'; // Any error makes it red
+                } else {
+                    // No errors, check time
+                    const averageTime = entry.totalTimeCorrect / entry.correctCount;
+                    if (averageTime <= this.FAST_THRESHOLD_MS) {
+                        entry.category = 'fast'; // Correct and fast enough
+                    } else {
+                        entry.category = 'slow'; // Correct but too slow
+                    }
+                }
+            } else {
+                entry.category = 'none'; // No attempts
             }
         }
 
-         // Handle cases where no stats were recorded or all scores are the same
-        if (!hasScores || this.minScore === this.maxScore) {
-             this.minScore = 0; // Avoid division by zero later
-             this.maxScore = 1; // Provide a default range
-             if (hasScores && this.difficultyScores[Object.keys(this.difficultyScores)[0]].score === 0) {
-                 // If all attempted scores are 0, set max slightly higher to avoid 0/0
-                 this.maxScore = 1;
-             } else if (hasScores) {
-                 // If all scores are the same non-zero value, adjust min/max for differentiation
-                 this.minScore = this.maxScore - 1;
-             }
-        }
-
-
-        console.log("Difficulty Scores Calculated:", this.difficultyScores);
-        console.log("Score Range (Min/Max):", this.minScore, this.maxScore);
+        console.log("Fact Statistics Calculated:", this.factStats);
     }
 
     displayGrid() {
@@ -142,96 +124,49 @@ export default class StatisticsScene extends Phaser.Scene {
         for (let i = 1; i <= gridSize; i++) { // Row (num1)
             for (let j = 1; j <= gridSize; j++) { // Column (num2)
                 const key = `${i}x${j}`;
-                const scoreData = this.difficultyScores[key];
+                const stats = this.factStats[key];
                 const cellX = startX + (j + 0.5) * cellSize;
                 const cellY = startY + (i + 0.5) * cellSize;
 
-                // Calculate normalized score (0 to 1) for color interpolation
-                // Handle cases where a fact wasn't attempted
-                let normalizedScore = 0.5; // Default to neutral if not attempted
-                let attempts = 0;
-                if (scoreData && scoreData.attempts > 0) {
-                    attempts = scoreData.attempts;
-                    const scoreRange = this.maxScore - this.minScore;
-                     // Clamp score within the calculated range before normalizing
-                    const clampedScore = Math.max(this.minScore, Math.min(scoreData.score, this.maxScore));
-                    normalizedScore = (scoreRange > 0) ? (clampedScore - this.minScore) / scoreRange : 0.5; // Avoid division by zero
-                }
-
-                // Interpolate color: 0 (easy) = green, 0.5 (neutral) = yellow, 1 (hard) = red
-                const easyColor = Phaser.Display.Color.ValueToColor(0x00ff00); // Green
-                const midColor = Phaser.Display.Color.ValueToColor(0xffff00); // Yellow
-                const hardColor = Phaser.Display.Color.ValueToColor(0xff0000); // Red
                 let cellColor;
-                if (normalizedScore < 0.5) {
-                    // Interpolate between green and yellow
-                    cellColor = Phaser.Display.Color.Interpolate.ColorWithColor(easyColor, midColor, 1, normalizedScore * 2);
-                } else {
-                    // Interpolate between yellow and red
-                    cellColor = Phaser.Display.Color.Interpolate.ColorWithColor(midColor, hardColor, 1, (normalizedScore - 0.5) * 2);
+                let textColor = '#ffffff'; // Default white text
+                let alpha = 1.0;
+
+                // Determine background color based on category
+                switch (stats.category) {
+                    case 'fast':
+                        cellColor = 0x00cc44; // Green
+                        break;
+                    case 'slow':
+                        cellColor = 0xffa500; // Orange
+                        break;
+                    case 'incorrect':
+                        cellColor = 0xcc4444; // Red
+                        break;
+                    case 'none':
+                    default:
+                        cellColor = 0x555555; // Dark Grey
+                        textColor = '#aaaaaa'; // Lighter grey text for unused cells
+                        alpha = 0.7; // Slightly dim unused cells
+                        break;
                 }
 
                 // Add cell background rectangle
-                const rect = this.add.rectangle(cellX, cellY, cellSize - 2, cellSize - 2, cellColor.color)
-                    .setStrokeStyle(1, 0xffffff); // White border
+                const rect = this.add.rectangle(cellX, cellY, cellSize - 2, cellSize - 2, cellColor)
+                    .setStrokeStyle(1, 0xaaaaaa) // Light grey border for all cells
+                    .setAlpha(alpha);
 
                 // Add product text inside the cell
                 const productText = this.add.text(cellX, cellY, (i * j).toString(), {
-                    fontSize: cellFontSize, fill: '#000', fontStyle: 'bold' // Black text for contrast
-                }).setOrigin(0.5);
+                    fontSize: cellFontSize, fill: textColor, fontStyle: 'bold'
+                }).setOrigin(0.5).setAlpha(alpha);
 
-                 // Add tooltip on hover (optional but helpful)
-                 if (attempts > 0) {
-                    const avgTime = (scoreData.totalTime / attempts / 1000).toFixed(1); // Avg time in seconds
-                    const accuracy = ((scoreData.correct / attempts) * 100).toFixed(0);
-                    const tooltipText = `${i} x ${j}\nAttempts: ${attempts}\nCorrect: ${scoreData.correct} (${accuracy}%)\nAvg Time: ${avgTime}s\nScore: ${scoreData.score.toFixed(1)}`;
-                    // Simple hover effect: change border and show tooltip text (could use a dedicated tooltip object)
-                    rect.setInteractive();
-                    rect.on('pointerover', () => {
-                        rect.setStrokeStyle(2, 0x000000); // Black border on hover
-                        // Ideally, show a proper tooltip text object here
-                    });
-                     rect.on('pointerout', () => {
-                         rect.setStrokeStyle(1, 0xffffff); // Back to white border
-                         // Hide tooltip text object
-                     });
-                 } else {
-                     // Slightly dim cells that were not attempted
-                     rect.setAlpha(0.6);
-                     productText.setAlpha(0.6);
-                 }
+                // No tooltip or hover effects needed in this simplified version
             }
         }
     }
 
-    displayLegend() {
-        const legendX = this.cameras.main.width * 0.15; // Position legend on the left
-        const legendY = this.cameras.main.height - 80; // Position near the bottom
-        const legendWidth = 200;
-        const legendHeight = 20;
-
-        // Create a graphics object for the gradient bar
-        const graphics = this.add.graphics();
-
-        // Draw the gradient bar (Green -> Yellow -> Red)
-        const easyColor = 0x00ff00;
-        const midColor = 0xffff00;
-        const hardColor = 0xff0000;
-
-        // Draw left half (Green to Yellow)
-        graphics.fillGradientStyle(easyColor, easyColor, midColor, midColor, 1);
-        graphics.fillRect(legendX, legendY, legendWidth / 2, legendHeight);
-
-        // Draw right half (Yellow to Red)
-        graphics.fillGradientStyle(midColor, midColor, hardColor, hardColor, 1);
-        graphics.fillRect(legendX + legendWidth / 2, legendY, legendWidth / 2, legendHeight);
-
-        // Add labels
-        this.add.text(legendX, legendY + legendHeight + 5, 'Easier / Faster', { fontSize: '14px', fill: '#fff' }).setOrigin(0, 0);
-        this.add.text(legendX + legendWidth, legendY + legendHeight + 5, 'Harder / Slower', { fontSize: '14px', fill: '#fff' }).setOrigin(1, 0);
-        this.add.text(legendX + legendWidth / 2, legendY - 5, 'Difficulty', { fontSize: '16px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5, 1);
-    }
-
+    // displayLegend() function is removed
 
     displayButtons() {
         const buttonY = this.cameras.main.height - 40; // Position buttons at the very bottom
