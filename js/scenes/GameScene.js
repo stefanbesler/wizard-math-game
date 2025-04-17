@@ -129,6 +129,24 @@ export default class GameScene extends Phaser.Scene {
              stroke: '#000000', strokeThickness: 4
         }).setOrigin(1, 0); // Align top-right
 
+        // --- Health UI (Hearts) ---
+        this.heartOutlines = [];
+        this.hearts = [];
+        const heartStartX = this.cameras.main.width - 40; // Start from right edge
+        const heartY = 70; // Position below score
+        const heartSpacing = 40;
+
+        for (let i = 0; i < this.maxHearts; i++) {
+            // Add outlines first (background)
+            const outline = this.add.sprite(heartStartX - i * heartSpacing, heartY, 'heart').setOrigin(0.5);
+            this.heartOutlines.push(outline);
+
+            // Add filled hearts on top
+            const fill = this.add.sprite(heartStartX - i * heartSpacing, heartY, 'heart-filled').setOrigin(0.5);
+            this.hearts.push(fill);
+        }
+        this.updateHealthUI(); // Initial display based on currentHearts
+
         // --- Input Handling ---
         this.input.keyboard.on('keydown', this.handleKeyInput, this);
 
