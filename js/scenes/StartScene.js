@@ -23,8 +23,9 @@ export default class StartScene extends Phaser.Scene {
             // Optional: Add a fade out effect
             this.cameras.main.fadeOut(500, 0, 0, 0, (camera, progress) => {
                 if (progress === 1) {
-                    this.sound.stopAll(); // Stop menu music
-                    this.scene.start('GameScene');
+                    // Keep music playing for LevelSelectScene, or stop if desired
+                    // this.sound.stopAll();
+                    this.scene.start('LevelSelectScene'); // Go to Level Select instead of Game
                 }
             });
         });

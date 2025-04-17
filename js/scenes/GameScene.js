@@ -21,7 +21,22 @@ export default class GameScene extends Phaser.Scene {
         this.enemySpeed = 45; // Pixels per second, adjust for difficulty
         this.gameOverLineX = 150; // X-coordinate where enemies trigger game over
         this.isGameOver = false;
+        this.selectedTables = [3]; // Default value, will be overwritten by init
     }
+
+    // Initialize scene with data passed from the previous scene
+    init(data) {
+        console.log('GameScene init, received data:', data);
+        // Use selected tables if passed, otherwise keep the default [3]
+        if (data && data.selectedTables && data.selectedTables.length > 0) {
+            this.selectedTables = data.selectedTables;
+        } else {
+            console.warn('No valid selectedTables received, defaulting to [3]');
+            this.selectedTables = [3]; // Fallback if no data is passed
+        }
+        console.log('GameScene will use tables:', this.selectedTables);
+    }
+
 
     create() {
         console.log('GameScene: create');
@@ -169,8 +184,9 @@ export default class GameScene extends Phaser.Scene {
     }
 
     generateQuestion() {
-        const num1 = 3; // Fixed multiplier for the 3 times table
-        const num2 = Phaser.Math.Between(1, 10); // Random number between 1 and 10
+        // Select the first number randomly from the player's chosen tables
+        const num1 = Phaser.Math.RND.pick(this.selectedTables);
+        const num2 = Phaser.Math.Between(1, 10); // Random number between 1 and 10 (or adjust range if needed)
         this.currentQuestion.num1 = num1;
         this.currentQuestion.num2 = num2;
         this.currentQuestion.answer = num1 * num2;
@@ -179,7 +195,7 @@ export default class GameScene extends Phaser.Scene {
         this.questionText.setText(`${num1} × ${num2} = ?`); // Use multiplication symbol
 
         // Log for debugging
-        console.log(`New question: ${num1} x ${num2} = ${this.currentQuestion.answer}`);
+        console.log(`New question: ${num1} x ${num2} = ${this.currentQuestion.answer} (Using tables: ${this.selectedTables.join(', ')})`);
     }
 
     checkAnswer() {
