@@ -353,10 +353,18 @@ export default class GameScene extends Phaser.Scene {
             this.sound.play('castSound');
 
             // --- Create Lightning Effect ---
+            // --- Create Lightning Effect ---
             // Estimate wand position (adjust offsets as needed)
             const wandX = this.wizard.x + 20; // Slightly right of wizard center
             const wandY = this.wizard.y - 60; // Above wizard center (adjust based on sprite)
-            this.createLightning(wandX, wandY, closestEnemy.x, closestEnemy.y);
+
+            // Calculate target position based on enemy's visual center
+            const bounds = closestEnemy.getBounds();
+            const targetX = bounds.centerX;
+            // Add slight vertical jitter to the target point
+            const targetY = bounds.centerY + Phaser.Math.Between(-10, 10);
+
+            this.createLightning(wandX, wandY, targetX, targetY);
 
 
             // --- Damage the Enemy ---
@@ -432,63 +440,85 @@ export default class GameScene extends Phaser.Scene {
      * Creates a lightning bolt effect from a start point to an end point.
      * @param {number} startX - The starting X coordinate.
      * @param {number} startY - The starting Y coordinate.
-     * @param {number} endX - The ending X coordinate.
-     * @param {number} endY - The ending Y coordinate.
+     * @param {number} endX - The ending X coordinate (enemy center X).
+     * @param {number} endY - The ending Y coordinate (enemy center Y with jitter).
      */
     createLightning(startX, startY, endX, endY) {
-        const mainBoltAlpha = 1;
-        const offshootAlpha = 0.4; // Alpha for the dimmer offshoots
-        const mainColor = 0xFFFF00; // Yellow for main bolt
-        const offshootColor = 0xFFFF99; // Lighter yellow for offshoots
+        const segments = 12; // More segments for smoother animation/jitter
+        const jitter = 15;   // Max pixel offset for the zigzag
+        const duration = 75; // Total duration for the lightning animation (ms)
+        const delayBetweenSegments = duration / segments;
+        const glowColor = 0xffff88; // Soft yellow for glow
+        const glowAlpha = 0.25;
+        const glowWidth = 10;
+        const mainColor = 0xFFFF00; // Bright yellow for main bolt
+        const mainAlpha = 1.0;
         const mainWidth = 3;
-        const offshootWidth = 1;
-        const segments = 10; // Number of segments in the bolt
-        const jitter = 12; // Max pixel offset for the zigzag
-        const fadeDuration = 150; // Milliseconds to fade out
+        const impactShakeDuration = 80;
+        const impactShakeIntensity = 0.005;
+        const fadeOutDuration = 100; // How long the bolt stays visible after drawing
 
-        // Function to draw a single bolt
-        const drawBolt = (sX, sY, eX, eY, width, color, alpha) => {
-            const graphics = this.add.graphics().setAlpha(alpha);
-            graphics.lineStyle(width, color, 1); // Use alpha from setAlpha
+        // --- Generate Points ---
+        const points = [];
+        points.push(new Phaser.Math.Vector2(startX, startY)); // Start point
 
-            let prevX = sX;
-            let prevY = sY;
+        for (let i = 1; i <= segments; i++) {
+            const t = i / segments;
+            // Base position using linear interpolation
+            let x = Phaser.Math.Linear(startX, endX, t);
+            let y = Phaser.Math.Linear(startY, endY, t);
+            // Add random jitter, except for the very start and end points
+            if (i < segments) {
+                x += Phaser.Math.Between(-jitter, jitter);
+                y += Phaser.Math.Between(-jitter, jitter);
+            }
+            points.push(new Phaser.Math.Vector2(x, y));
+        }
 
-            for (let i = 1; i <= segments; i++) {
-                const t = i / segments;
-                // Linear interpolation for base position
-                let x = Phaser.Math.Linear(sX, eX, t);
-                let y = Phaser.Math.Linear(sY, eY, t);
-                // Add random jitter, except for the very end point
-                if (i < segments) {
-                    x += Phaser.Math.Between(-jitter, jitter);
-                    y += Phaser.Math.Between(-jitter, jitter);
-                }
-                graphics.strokeLineShape(new Phaser.Geom.Line(prevX, prevY, x, y));
-                prevX = x;
-                prevY = y;
+        // --- Create Graphics Objects ---
+        // Glow layer (drawn first, underneath)
+        const glowGraphics = this.add.graphics().setDepth(5); // Ensure glow is behind main bolt if needed
+        glowGraphics.lineStyle(glowWidth, glowColor, glowAlpha);
+
+        // Main lightning bolt layer
+        const lightningGraphics = this.add.graphics().setDepth(6); // Ensure main bolt is on top
+        lightningGraphics.lineStyle(mainWidth, mainColor, mainAlpha);
+
+        // --- Animate Drawing ---
+        let currentSegment = 0;
+        const drawSegment = () => {
+            if (currentSegment >= points.length - 1) {
+                // Animation finished
+                // Play impact sound (reuse castSound or add a dedicated 'zap' sound)
+                this.sound.play('castSound', { volume: 0.6 }); // Consider a unique sound: 'zapSound'
+                // Optional: Camera shake on impact
+                this.cameras.main.shake(impactShakeDuration, impactShakeIntensity);
+
+                // Set a timer to destroy the graphics after a short delay
+                this.time.delayedCall(fadeOutDuration, () => {
+                    glowGraphics.destroy();
+                    lightningGraphics.destroy();
+                });
+                return; // Stop the loop
             }
 
-            // Fade out and destroy
-            this.tweens.add({
-                targets: graphics,
-                alpha: 0,
-                duration: fadeDuration,
-                ease: 'Power1',
-                onComplete: () => graphics.destroy()
-            });
+            const p1 = points[currentSegment];
+            const p2 = points[currentSegment + 1];
+
+            // Draw segment on both graphics objects
+            glowGraphics.strokeLineShape(new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y));
+            lightningGraphics.strokeLineShape(new Phaser.Geom.Line(p1.x, p1.y, p2.x, p2.y));
+
+            currentSegment++;
         };
 
-        // Draw the main bolt
-        drawBolt(startX, startY, endX, endY, mainWidth, mainColor, mainBoltAlpha);
-
-        // Draw 1-2 offshoots with slight position variations and lower alpha
-        const numOffshoots = Phaser.Math.Between(1, 2);
-        for (let k = 0; k < numOffshoots; k++) {
-            const offshootEndX = endX + Phaser.Math.Between(-15, 15); // Slightly offset end point
-            const offshootEndY = endY + Phaser.Math.Between(-15, 15);
-            drawBolt(startX, startY, offshootEndX, offshootEndY, offshootWidth, offshootColor, offshootAlpha);
-        }
+        // Use a timed event to call drawSegment repeatedly
+        this.time.addEvent({
+            delay: delayBetweenSegments,
+            callback: drawSegment,
+            callbackScope: this,
+            repeat: segments // Run 'segments' times to draw all lines between the points
+        });
     }
 
 
