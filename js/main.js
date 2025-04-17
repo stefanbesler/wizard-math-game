@@ -1,8 +1,9 @@
 import BootScene from './scenes/BootScene.js';
+import BootScene from './scenes/BootScene.js';
 import StartScene from './scenes/StartScene.js';
-import LevelSelectScene from './scenes/LevelSelectScene.js'; // Import the new scene
+import LevelSelectScene from './scenes/LevelSelectScene.js';
 import GameScene from './scenes/GameScene.js';
-// Import EndScene later if you create one
+import StatisticsScene from './scenes/StatisticsScene.js'; // Import the new Statistics scene
 
 // Phaser Game Configuration
 const config = {
@@ -19,7 +20,7 @@ const config = {
     },
     // List of scenes to include in the game
     // The first scene in the array is the one that starts automatically
-    scene: [BootScene, StartScene, LevelSelectScene, GameScene] // Add LevelSelectScene
+    scene: [BootScene, StartScene, LevelSelectScene, GameScene, StatisticsScene] // Add StatisticsScene
 };
 
 // Create a new Phaser Game instance

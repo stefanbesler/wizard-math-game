@@ -200,6 +200,9 @@ export default class GameScene extends Phaser.Scene {
 
         // Log for debugging
         console.log(`New question: ${num1} x ${num2} = ${this.currentQuestion.answer} (Using tables: ${this.selectedTables.join(', ')})`);
+
+        // Record start time for this question
+        this.questionStartTime = Date.now();
     }
 
     checkAnswer() {
@@ -285,7 +288,7 @@ export default class GameScene extends Phaser.Scene {
         this.sound.play('wrongSound');
 
         // Do NOT generate a new question - let the player retry
-        // Optional: Make enemies move slightly faster or closer?
+        // Optional: Make enemies move slightly faster or closer? (Be careful with this, might be frustrating)
         // this.enemies.getChildren().forEach(enemy => {
         //     if (enemy) enemy.x -= 10; // Small nudge forward
         // });
