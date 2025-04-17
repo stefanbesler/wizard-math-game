@@ -1,6 +1,19 @@
+// Import the new enemy classes
+import Shadow from '../sprites/Shadow.js';
+import Ghost from '../sprites/Ghost.js';
+import Plant from '../sprites/Plant.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
+
+        // Player Health
+        this.maxHearts = 3;
+        this.currentHearts = 0; // Will be set in create
+        this.invulnerable = false;
+        this.invulnerableTimer = null;
+        this.heartOutlines = [];
+        this.hearts = [];
 
         // Game state variables
         this.wizard = null;
@@ -12,6 +25,7 @@ export default class GameScene extends Phaser.Scene {
         this.questionText = null;
         this.inputText = null;
         this.scoreText = null;
+        // Heart UI elements are now properties above
 
         // Gameplay Variables
         this.currentInput = '';
@@ -27,8 +41,8 @@ export default class GameScene extends Phaser.Scene {
         this.waveSpawnTimer = null; // Timer for spawning enemies within a wave
         this.nextWaveTimer = null; // Timer for scheduling the next wave
 
-        this.enemySpeed = 45; // Base pixels per second, might increase later
-        this.gameOverLineX = 150; // X-coordinate where enemies trigger game over
+        // this.enemySpeed = 45; // Removed - speed is now per-enemy
+        this.gameOverLineX = 150; // X-coordinate where enemies trigger player damage
         this.isGameOver = false;
         this.selectedTables = [3]; // Default value, will be overwritten by init
 
@@ -53,7 +67,9 @@ export default class GameScene extends Phaser.Scene {
 
     create() {
         console.log('GameScene: create');
-        this.isGameOver = false; // Reset game over flag on scene start/restart
+        this.isGameOver = false; // Reset game over flag
+        this.invulnerable = false; // Reset invulnerability
+        this.currentHearts = this.maxHearts; // Reset health
 
         // --- World Setup ---
         // Background
@@ -77,8 +93,14 @@ export default class GameScene extends Phaser.Scene {
         });
 
         // --- Enemies ---
-        // Create a physics group for enemies to handle movement and collision
-        this.enemies = this.physics.add.group();
+        // Create a physics group for enemies.
+        // We will add instances of our custom Enemy classes to this group.
+        // The classType helps Phaser know what kind of objects to expect,
+        // although we'll be creating them manually anyway.
+        this.enemies = this.physics.add.group({
+            classType: Phaser.Physics.Arcade.Sprite, // Base type, actual instances vary
+            runChildUpdate: false // We will manually call update on each enemy
+        });
 
         // --- Particles --- (Removing - will use tweens instead)
         // this.particles = this.add.particles('wizard');
@@ -137,27 +159,77 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // --- Enemy Movement and Checks ---
-        // Use Phaser's group iteration
-        this.enemies.children.iterate((enemy) => {
-            if (enemy) { // Check if enemy exists (it might be destroyed)
-                // Move enemy left based on speed and delta time
-                enemy.x -= (this.enemySpeed / 1000) * delta;
+        // Manually update each enemy instance
+        this.enemies.getChildren().forEach(enemy => {
+            if (enemy.active) { // Check if enemy is active
+                // Call the enemy's own update method
+                enemy.update(delta);
 
-                // Note: Animation should be playing automatically if started correctly in spawnEnemy
-
-                // --- Game Over Check ---
-                if (enemy.x < this.gameOverLineX) {
-                    this.triggerGameOver(enemy);
-                    return; // Stop checking other enemies once game is over
+                // --- Player Damage Check ---
+                // Check if enemy crossed the line AND player is not invulnerable
+                if (enemy.x < this.gameOverLineX && !this.invulnerable) {
+                    this.playerTakeDamage(enemy); // Player takes damage
+                    // Note: playerTakeDamage handles invulnerability timing
                 }
-
-                // Optional: Despawn enemies that go way off-screen left (if needed)
-                // if (enemy.x < -100) {
-                //     enemy.destroy();
-                // }
             }
         });
     }
+
+    // --- Player Health and Damage ---
+
+    playerTakeDamage(enemy) {
+        if (this.isGameOver || this.invulnerable) {
+            return; // Already game over or recently hit
+        }
+
+        console.log('Player hit!');
+        this.currentHearts--;
+        this.updateHealthUI();
+
+        // Make player invulnerable for a short time
+        this.invulnerable = true;
+        this.wizard.setAlpha(0.5); // Visual feedback for invulnerability
+
+        // Play hurt sound
+        this.sound.play('wrongSound'); // Maybe use a different sound?
+        this.cameras.main.shake(150, 0.008); // Shake camera
+
+        // Destroy the enemy that hit the player
+        if (enemy && enemy.active) {
+            enemy.destroy();
+        }
+
+        // Set timer to end invulnerability
+        if (this.invulnerableTimer) {
+            this.invulnerableTimer.remove(false); // Remove previous timer if any
+        }
+        this.invulnerableTimer = this.time.delayedCall(1500, () => { // 1.5 seconds invulnerability
+            this.invulnerable = false;
+            this.wizard.setAlpha(1.0); // Restore wizard visibility
+            console.log('Player invulnerability ended.');
+        }, [], this);
+
+
+        // Check for actual game over (no hearts left)
+        if (this.currentHearts <= 0) {
+            this.triggerGameOver(); // Game over triggered by health loss
+        }
+    }
+
+    updateHealthUI() {
+        // Update visibility of filled hearts based on currentHearts
+        for (let i = 0; i < this.maxHearts; i++) {
+            // Hearts array is filled right-to-left visually (index 0 is rightmost)
+            // Player loses hearts from right to left
+            if (i < this.currentHearts) {
+                this.hearts[i].setVisible(true);
+            } else {
+                this.hearts[i].setVisible(false);
+            }
+        }
+    }
+
+    // --- Input and Answer Handling ---
 
     handleKeyInput(event) {
         // Ignore input if game is over
@@ -252,41 +324,58 @@ export default class GameScene extends Phaser.Scene {
         this.scoreText.setText('Score: ' + this.score);
 
         // --- Find and Attack Closest Enemy ---
-        let closestEnemy = this.physics.closest(this.wizard, this.enemies.getChildren());
+        // Get active enemies only
+        const activeEnemies = this.enemies.getChildren().filter(e => e.active);
+        let closestEnemy = this.physics.closest(this.wizard, activeEnemies);
 
         if (closestEnemy) {
-            console.log('Defeating enemy at x:', closestEnemy.x);
+            console.log(`Targeting ${closestEnemy.constructor.name} at x: ${closestEnemy.x.toFixed(0)}`);
 
             // Play cast sound
             this.sound.play('castSound');
 
-            // Play enemy hit sound slightly delayed
-            this.sound.play('enemyHitSound', { delay: 0.15 }); // Delay in seconds
+            // --- Damage the Enemy ---
+            // Call the enemy's takeDamage method
+            const defeated = closestEnemy.takeDamage(1); // Deal 1 damage per correct answer
 
-            // --- Use Built-in Effects ---
-            // 1. Camera Flash
-            this.cameras.main.flash(150, 255, 255, 255); // duration, r, g, b (white flash)
+            if (defeated) {
+                // Enemy was defeated by this hit
+                console.log(`${closestEnemy.constructor.name} defeated by attack.`);
+                this.sound.play('enemyHitSound', { delay: 0.15 }); // Play death sound
 
-            // 2. Enemy Tween (Scale up and Fade out)
-            this.tweens.add({
-                targets: closestEnemy,
-                scaleX: closestEnemy.scaleX * 1.5, // Scale up slightly
-                scaleY: closestEnemy.scaleY * 1.5,
-                alpha: 0, // Fade out
-                duration: 200, // milliseconds
-                ease: 'Power2', // Phaser easing function
-                onComplete: () => {
-                    // Destroy the enemy *after* the tween finishes
-                    if (closestEnemy.active) { // Check if it wasn't already destroyed somehow
-                       closestEnemy.destroy();
-                    }
-                }
-            });
+                // --- Use Built-in Effects for Death ---
+                // 1. Camera Flash (optional, maybe only for harder enemies?)
+                // this.cameras.main.flash(150, 255, 255, 255);
 
-            // Note: Enemy is destroyed by the tween's onComplete callback now
+                // 2. Enemy Death Tween (Scale up/Fade out - handled in Enemy.die() or here)
+                // The takeDamage method already handles tinting.
+                // The die method currently just destroys. We could add tweens there
+                // or keep the tween logic here if preferred. Let's assume die() handles it for now.
+
+                // Increase score only when an enemy is actually defeated
+                this.score += 10; // Or maybe score based on enemy type?
+                this.scoreText.setText('Score: ' + this.score);
+
+            } else {
+                // Enemy was hit but survived (e.g., Plant)
+                console.log(`${closestEnemy.constructor.name} survived the hit.`);
+                // Play a different, less impactful hit sound?
+                // this.sound.play('hitSound', { volume: 0.5 });
+            }
+
+            // Note: Enemy destruction is handled by its own takeDamage/die methods
 
         } else {
-            console.log('Correct answer, but no enemies to target.');
+            console.log('Correct answer, but no active enemies to target.');
+            // Still play cast animation even if no target? Your choice.
+            // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
+        }
+
+            // Note: Enemy destruction is handled within its takeDamage/die methods now.
+            // The score increase was moved inside the 'defeated' block.
+
+        } else {
+            console.log('Correct answer, but no active enemies to target.');
             // Still play cast animation even if no target? Your choice.
             // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
         }
@@ -311,7 +400,8 @@ export default class GameScene extends Phaser.Scene {
         this.sound.play('wrongSound');
 
         // Do NOT generate a new question - let the player retry
-        // Optional: Make enemies move slightly faster or closer? (Be careful with this, might be frustrating)
+        // Optional: Make enemies move slightly faster or closer? (Handled by enemy update now)
+        // We could temporarily boost speed here if desired:
         // this.enemies.getChildren().forEach(enemy => {
         //     if (enemy) enemy.x -= 10; // Small nudge forward
         // });
@@ -330,16 +420,50 @@ export default class GameScene extends Phaser.Scene {
 
         console.log(`Starting Wave ${this.waveNumber}: Spawning ${this.enemiesPerWave} enemies. Next wave in ${this.timeBetweenWaves / 1000}s.`);
 
-        // Start spawning enemies for the current wave
-        this.waveSpawnTimer = this.time.addEvent({
-            delay: this.timeBetweenEnemiesInWave,
-            callback: this.spawnEnemyInWave,
-            callbackScope: this,
-            repeat: this.enemiesPerWave - 1 // Spawn first one immediately, then repeat N-1 times
-        });
-        // Spawn the first enemy of the wave immediately
-        this.spawnEnemyInWave();
+        // Start spawning enemies for the current wave, considering 'loner' property
+        this.scheduleNextEnemySpawn(0); // Start spawning the first enemy immediately
     }
+
+    scheduleNextEnemySpawn(spawnedCount) {
+        if (this.isGameOver || spawnedCount >= this.enemiesPerWave) {
+             // Wave spawning finished, schedule the next wave
+            console.log(`Wave ${this.waveNumber} spawning complete.`);
+            if (this.waveSpawnTimer) this.waveSpawnTimer.remove(false); // Clean up timer
+            this.nextWaveTimer = this.time.delayedCall(this.timeBetweenWaves, this.startNextWave, [], this);
+            return;
+        }
+
+        // Spawn one enemy now
+        const enemyType = this.chooseEnemyType(); // Decide which enemy to spawn
+        const spawnedEnemy = this.spawnEnemy(enemyType); // Spawn it
+
+        let delayForNext = this.timeBetweenEnemiesInWave;
+
+        // If the spawned enemy is a 'loner', increase delay significantly before next spawn in wave
+        if (spawnedEnemy && spawnedEnemy.isLoner) {
+            delayForNext *= 2.5; // Example: Make loners create bigger gaps
+            console.log(`Spawned a loner (${spawnedEnemy.constructor.name}), increasing next spawn delay to ${delayForNext}ms`);
+        }
+
+        // Schedule the next spawn in this wave
+        this.waveSpawnTimer = this.time.delayedCall(delayForNext, () => {
+            this.scheduleNextEnemySpawn(spawnedCount + 1);
+        }, [], this);
+    }
+
+
+    // --- Individual Enemy Spawning ---
+
+    chooseEnemyType() {
+        // Basic random selection for now, could be weighted later
+        const rand = Phaser.Math.Between(1, 10);
+        if (rand <= 4) return Ghost; // 40% chance Ghost
+        if (rand <= 7) return Shadow; // 30% chance Shadow
+        return Plant; // 30% chance Plant
+    }
+
+    spawnEnemy(EnemyClass) {
+        // This function now creates a single enemy instance of the specified class
 
     spawnEnemyInWave() {
         if (this.isGameOver) return;
@@ -358,39 +482,27 @@ export default class GameScene extends Phaser.Scene {
 
     // --- Individual Enemy Spawning ---
 
-    spawnEnemy() {
-        // This function now just creates a single enemy instance
+        if (!EnemyClass) {
+            console.error("No EnemyClass provided to spawnEnemy!");
+            return null;
+        }
 
         // Calculate spawn position: off-screen right, vertically aligned with wizard's base
-        const yPos = this.cameras.main.height - 80; // Match wizard Y pos (adjust slightly if needed)
-        const startX = this.cameras.main.width + Phaser.Math.Between(50, 100); // Start slightly varied off-screen right
+        const yPos = this.cameras.main.height - 80; // Match wizard Y pos
+        const startX = this.cameras.main.width + Phaser.Math.Between(50, 100); // Start varied off-screen right
 
-        // Choose a random enemy type (0: shadow, 1: ghost, 2: plant)
-        const enemyType = Phaser.Math.Between(0, 2);
-        const enemyTypes = [
-            { frame: 0, anim: 'shadow_idle', name: 'Shadow' },
-            { frame: 3, anim: 'ghost_idle', name: 'Ghost' },
-            { frame: 6, anim: 'plant_idle', name: 'Plant' }
-        ];
-        const selectedEnemy = enemyTypes[enemyType];
+        // Create an instance of the specific enemy class
+        const enemy = new EnemyClass(this, startX, yPos);
 
-        // Create the enemy sprite using the physics group, starting at the first frame of its animation
-        const enemy = this.enemies.create(startX, yPos, 'enemies', selectedEnemy.frame);
-        enemy.setOrigin(0.5, 1); // Bottom-center origin
-        enemy.setScale(2.0); // Adjust scale if needed (make smaller/larger)
-        enemy.setCollideWorldBounds(false); // Allow them to move off-screen
+        // Add the enemy to the physics group
+        this.enemies.add(enemy);
 
-        // Play the correct animation for the spawned enemy type
-        enemy.play(selectedEnemy.anim);
-
-        // Optional: Give enemies slightly varied speed
-        // let speedVariation = Phaser.Math.FloatBetween(0.9, 1.2);
-        // enemy.speedMultiplier = speedVariation; // You'd use this in the update loop
-
-        console.log(`Spawned enemy type ${selectedEnemy.name} (anim: ${selectedEnemy.anim}) at x: ${startX.toFixed(0)}`);
+        // Log is now handled inside the Enemy constructor
+        // console.log(`Spawned enemy type ${enemy.constructor.name} at x: ${startX.toFixed(0)}`);
+        return enemy; // Return the spawned enemy instance
     }
 
-    triggerGameOver(enemy) {
+    triggerGameOver() { // Removed enemy parameter - triggered by health loss now
         // Prevent this function from running multiple times
         if (this.isGameOver) {
             return;
@@ -409,7 +521,13 @@ export default class GameScene extends Phaser.Scene {
             this.nextWaveTimer.remove(false);
             this.nextWaveTimer = null;
         }
-        this.enemies.children.each(e => e.anims?.stop()); // Stop enemy animations
+        // Stop enemy updates and animations
+        this.enemies.getChildren().forEach(e => {
+            if (e.active) {
+                e.body.stop(); // Stop physics body
+                e.anims?.stop(); // Stop animation
+            }
+        });
         this.wizard.anims.stop();
 
         // Stop player input
@@ -418,9 +536,7 @@ export default class GameScene extends Phaser.Scene {
         // Visual feedback
         this.cameras.main.shake(300, 0.015);
         this.wizard.setTint(0xff6666); // Tint wizard slightly red
-        if (enemy) {
-            enemy.setTint(0xff6666); // Tint the specific enemy red
-        }
+        // Don't tint specific enemy anymore, it's triggered by health loss
 
         // Stop background music and play game over sound
         this.sound.stopAll();
@@ -435,10 +551,7 @@ export default class GameScene extends Phaser.Scene {
             fontSize: '64px', fill: '#ff0000', fontStyle: 'bold', stroke: '#ffffff', strokeThickness: 4
         }).setOrigin(0.5).setDepth(11);
 
-        this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 + 40, 'Click to Restart', {
-             fontSize: '32px', fill: '#ffffff'
-         }).setOrigin(0.5).setDepth(11);
-
+        // Removed 'Click to Restart' text - using buttons now
 
          // --- High Score Logic (using localStorage) ---
          let highScore = parseInt(localStorage.getItem('mathGameHighScore') || '0');

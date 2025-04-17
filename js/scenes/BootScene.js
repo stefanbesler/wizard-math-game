@@ -33,6 +33,10 @@ export default class BootScene extends Phaser.Scene {
         // Particle image - We will use a frame from the wizard spritesheet instead
         // this.load.image('particle_sparkle', 'assets/sprites/particle_sparkle.png');
 
+        // UI Elements
+        this.load.image('heart', 'assets/sprites/heart.png'); // Heart outline
+        this.load.image('heart-filled', 'assets/sprites/heart-filled.png'); // Heart fill
+
         // Placeholder for Sounds (Uncomment and add paths when you have sound files)
         // Music
         this.load.audio('startMusic', 'assets/music/Start.mp3');
