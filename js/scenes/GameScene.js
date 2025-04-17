@@ -17,8 +17,17 @@ export default class GameScene extends Phaser.Scene {
         this.currentInput = '';
         this.currentQuestion = { num1: 0, num2: 0, answer: 0 };
         this.score = 0;
-        this.enemySpawnTimer = null;
-        this.enemySpeed = 45; // Pixels per second, adjust for difficulty
+        // Wave spawning variables
+        this.waveNumber = 0;
+        this.enemiesPerWave = 2; // Start with 2 enemies
+        this.enemiesSpawnedThisWave = 0;
+        this.timeBetweenWaves = 8000; // Initial time between waves (ms)
+        this.minTimeBetweenWaves = 3000; // Minimum time between waves
+        this.timeBetweenEnemiesInWave = 1000; // Time between individual enemy spawns within a wave (ms)
+        this.waveSpawnTimer = null; // Timer for spawning enemies within a wave
+        this.nextWaveTimer = null; // Timer for scheduling the next wave
+
+        this.enemySpeed = 45; // Base pixels per second, might increase later
         this.gameOverLineX = 150; // X-coordinate where enemies trigger game over
         this.isGameOver = false;
         this.selectedTables = [3]; // Default value, will be overwritten by init
@@ -102,16 +111,11 @@ export default class GameScene extends Phaser.Scene {
         this.currentInput = '';
         this.updateInputText();
 
-        // --- Start Enemy Spawning ---
-        // Spawn first enemy after a short delay
-        this.time.delayedCall(2500, this.spawnEnemy, [], this);
-        // Set up a timer to spawn enemies repeatedly
-        this.enemySpawnTimer = this.time.addEvent({
-            delay: 5500, // Time between spawns in milliseconds (adjust difficulty)
-            callback: this.spawnEnemy,
-            callbackScope: this,
-            loop: true
-        });
+        // --- Start Enemy Wave Spawning ---
+        // Start the first wave after an initial delay
+        const initialSpawnDelay = 3000; // Time before the very first wave starts
+        this.nextWaveTimer = this.time.delayedCall(initialSpawnDelay, this.startNextWave, [], this);
+        console.log(`First wave scheduled in ${initialSpawnDelay / 1000}s`);
 
         // Fade in the scene
         this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -287,9 +291,49 @@ export default class GameScene extends Phaser.Scene {
         // });
     }
 
-    spawnEnemy() {
-        // Don't spawn if game is over
+    // --- Wave Management ---
+
+    startNextWave() {
         if (this.isGameOver) return;
+
+        this.waveNumber++;
+        this.enemiesSpawnedThisWave = 0;
+        // Increase difficulty: more enemies per wave, less time between waves
+        this.enemiesPerWave = 2 + Math.floor(this.waveNumber / 2); // Example: increases every 2 waves
+        this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves, 8000 - this.waveNumber * 150); // Decrease time between waves gradually
+
+        console.log(`Starting Wave ${this.waveNumber}: Spawning ${this.enemiesPerWave} enemies. Next wave in ${this.timeBetweenWaves / 1000}s.`);
+
+        // Start spawning enemies for the current wave
+        this.waveSpawnTimer = this.time.addEvent({
+            delay: this.timeBetweenEnemiesInWave,
+            callback: this.spawnEnemyInWave,
+            callbackScope: this,
+            repeat: this.enemiesPerWave - 1 // Spawn first one immediately, then repeat N-1 times
+        });
+        // Spawn the first enemy of the wave immediately
+        this.spawnEnemyInWave();
+    }
+
+    spawnEnemyInWave() {
+        if (this.isGameOver) return;
+
+        this.spawnEnemy(); // Call the actual enemy creation logic
+        this.enemiesSpawnedThisWave++;
+
+        // Check if wave is complete
+        if (this.enemiesSpawnedThisWave >= this.enemiesPerWave) {
+            console.log(`Wave ${this.waveNumber} spawning complete.`);
+            // Schedule the next wave
+            if (this.waveSpawnTimer) this.waveSpawnTimer.remove(false); // Ensure current timer is stopped
+            this.nextWaveTimer = this.time.delayedCall(this.timeBetweenWaves, this.startNextWave, [], this);
+        }
+    }
+
+    // --- Individual Enemy Spawning ---
+
+    spawnEnemy() {
+        // This function now just creates a single enemy instance
 
         // Calculate spawn position: off-screen right, vertically aligned with wizard's base
         const yPos = this.cameras.main.height - 80; // Match wizard Y pos (adjust slightly if needed)
@@ -330,8 +374,14 @@ export default class GameScene extends Phaser.Scene {
 
         // Stop everything
         this.physics.pause(); // Stop all physics movement
-        if (this.enemySpawnTimer) {
-            this.enemySpawnTimer.remove(false); // Stop spawning new enemies
+        // Stop wave timers
+        if (this.waveSpawnTimer) {
+            this.waveSpawnTimer.remove(false);
+            this.waveSpawnTimer = null;
+        }
+        if (this.nextWaveTimer) {
+            this.nextWaveTimer.remove(false);
+            this.nextWaveTimer = null;
         }
         this.enemies.children.each(e => e.anims?.stop()); // Stop enemy animations
         this.wizard.anims.stop();

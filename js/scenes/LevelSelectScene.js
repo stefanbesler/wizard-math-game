@@ -8,16 +8,16 @@ export default class LevelSelectScene extends Phaser.Scene {
     preload() {
         // Preload assets if needed, for now reuse existing ones
         console.log('LevelSelectScene: preload');
-        // Optional: Load a specific background for this scene
-        // this.load.image('levelSelectBackground', 'assets/backgrounds/background_library.png');
+        // Load the specific background for this scene
+        this.load.image('settingsBackground', 'assets/backgrounds/background_settings.png');
     }
 
     create() {
         console.log('LevelSelectScene: create');
 
         // --- Background ---
-        // Use an existing background or load a specific one in preload
-        this.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'titleScreen') // Or 'gameBackground' or your loaded image
+        // Use the specific background loaded in preload
+        this.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'settingsBackground')
             .setOrigin(0.5);
 
         // --- Title ---
