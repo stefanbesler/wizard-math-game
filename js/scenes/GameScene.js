@@ -393,9 +393,9 @@ export default class GameScene extends Phaser.Scene {
             // The score increase was moved inside the 'defeated' block.
 
         } else {
-            console.log('Correct answer, but no active enemies to target.');
-            // Still play cast animation even if no target? Your choice.
-            // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
+             console.log('Correct answer, but no active enemies to target.');
+             // Still play cast animation even if no target? Your choice.
+             // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
         }
 
         // Generate the next question immediately
@@ -482,23 +482,6 @@ export default class GameScene extends Phaser.Scene {
 
     spawnEnemy(EnemyClass) {
         // This function now creates a single enemy instance of the specified class
-
-    spawnEnemyInWave() {
-        if (this.isGameOver) return;
-
-        this.spawnEnemy(); // Call the actual enemy creation logic
-        this.enemiesSpawnedThisWave++;
-
-        // Check if wave is complete
-        if (this.enemiesSpawnedThisWave >= this.enemiesPerWave) {
-            console.log(`Wave ${this.waveNumber} spawning complete.`);
-            // Schedule the next wave
-            if (this.waveSpawnTimer) this.waveSpawnTimer.remove(false); // Ensure current timer is stopped
-            this.nextWaveTimer = this.time.delayedCall(this.timeBetweenWaves, this.startNextWave, [], this);
-        }
-    }
-
-    // --- Individual Enemy Spawning ---
 
         if (!EnemyClass) {
             console.error("No EnemyClass provided to spawnEnemy!");
