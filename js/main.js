@@ -1,5 +1,4 @@
 import BootScene from './scenes/BootScene.js';
-import BootScene from './scenes/BootScene.js';
 import StartScene from './scenes/StartScene.js';
 import LevelSelectScene from './scenes/LevelSelectScene.js';
 import GameScene from './scenes/GameScene.js';

@@ -31,6 +31,10 @@ export default class GameScene extends Phaser.Scene {
         this.gameOverLineX = 150; // X-coordinate where enemies trigger game over
         this.isGameOver = false;
         this.selectedTables = [3]; // Default value, will be overwritten by init
+
+        // Statistics Collection
+        this.sessionStats = []; // Array to store { num1, num2, answerGiven, correctAnswer, timeTaken, correct }
+        this.questionStartTime = 0; // Timestamp when the current question was shown
     }
 
     // Initialize scene with data passed from the previous scene
@@ -206,15 +210,34 @@ export default class GameScene extends Phaser.Scene {
     }
 
     checkAnswer() {
-        // Convert the player's input string to a number
-        const playerAnswer = parseInt(this.currentInput);
+        const timeTaken = Date.now() - this.questionStartTime;
+        const playerAnswerStr = this.currentInput; // Keep the raw input
+        const playerAnswerNum = parseInt(playerAnswerStr); // Attempt to parse
+        const correctAnswer = this.currentQuestion.answer;
+        const isCorrect = !isNaN(playerAnswerNum) && playerAnswerNum === correctAnswer;
+
+        // Record the attempt
+        this.sessionStats.push({
+            num1: this.currentQuestion.num1,
+            num2: this.currentQuestion.num2,
+            answerGiven: playerAnswerStr, // Store the raw string input
+            correctAnswer: correctAnswer,
+            timeTaken: timeTaken,
+            correct: isCorrect
+        });
+
+        console.log(`Attempt recorded: ${this.currentQuestion.num1}x${this.currentQuestion.num2}, Given: ${playerAnswerStr}, Correct: ${correctAnswer}, Time: ${timeTaken}ms, Result: ${isCorrect}`);
 
         // Check if the parsed number is valid and matches the correct answer
-        if (!isNaN(playerAnswer) && playerAnswer === this.currentQuestion.answer) {
+        if (isCorrect) {
             this.handleCorrectAnswer();
         } else {
-            this.handleWrongAnswer();
+            // Pass the parsed answer attempt for potential feedback, though we might not use it
+            this.handleWrongAnswer(playerAnswerNum);
         }
+        // Clear input field after submitting (moved here to happen regardless of correct/wrong)
+        this.currentInput = '';
+        this.updateInputText(); // Update display after clearing
     }
 
     handleCorrectAnswer() {
@@ -433,21 +456,59 @@ export default class GameScene extends Phaser.Scene {
               }).setOrigin(0.5).setDepth(11);
          }
 
+        // --- Action Buttons ---
+        const buttonY = this.cameras.main.height / 2 + 130; // Position below high score
+        const buttonSpacing = 200;
 
-        // --- Restart Listener ---
-        // Wait a short moment before enabling restart clicks
-        this.time.delayedCall(500, () => {
-            this.input.once('pointerdown', () => {
-                console.log('Restarting game...');
-                this.isGameOver = false; // Reset flag before restarting
-                this.sound.stopAll(); // Stop game over sound before restarting
-                // Fade out and restart the scene
-                this.cameras.main.fadeOut(500, 0, 0, 0, (camera, progress) => {
-                    if (progress === 1) {
-                       this.scene.restart();
-                    }
-                });
+        // Play Again Button
+        const againButton = this.add.text(this.cameras.main.width / 2 - buttonSpacing / 2, buttonY, 'Play Again', {
+            fontSize: '32px', fill: '#0f0', backgroundColor: '#333', padding: { x: 10, y: 5 }
+        }).setOrigin(0.5).setDepth(11).setInteractive();
+
+        againButton.on('pointerdown', () => {
+            console.log('Restarting game from Game Over...');
+            this.sound.stopAll();
+            this.cameras.main.fadeOut(300, 0, 0, 0, (camera, progress) => {
+                if (progress === 1) {
+                    // Pass the original selected tables back when restarting
+                    // Reset necessary game state variables before restarting
+                    this.scene.restart({ selectedTables: this.selectedTables });
+                }
             });
         });
-    }
-}
+        againButton.on('pointerover', () => againButton.setStyle({ fill: '#8f8' }));
+        againButton.on('pointerout', () => againButton.setStyle({ fill: '#0f0' }));
+
+
+        // Statistics Button
+        const statsButton = this.add.text(this.cameras.main.width / 2 + buttonSpacing / 2, buttonY, 'Statistics', {
+            fontSize: '32px', fill: '#ff0', backgroundColor: '#333', padding: { x: 10, y: 5 }
+        }).setOrigin(0.5).setDepth(11).setInteractive();
+
+        statsButton.on('pointerdown', () => {
+            console.log('Going to Statistics scene...');
+            this.sound.stopAll();
+            // Pass session data and selected tables to the Statistics Scene
+            const statsData = {
+                sessionStats: this.sessionStats,
+                selectedTables: this.selectedTables // Pass selected tables too
+            };
+            // Use scene.start, not restart, to go to a different scene
+            this.scene.start('StatisticsScene', statsData);
+        });
+        statsButton.on('pointerover', () => statsButton.setStyle({ fill: '#ff8' }));
+        statsButton.on('pointerout', () => statsButton.setStyle({ fill: '#ff0' }));
+
+
+        // Disable player input until buttons are ready (slight delay to prevent accidental clicks)
+        // Note: Keyboard input was already disabled earlier in triggerGameOver
+        // This ensures pointer input is also disabled until buttons appear.
+        this.input.enabled = false;
+        this.time.delayedCall(500, () => {
+             // Re-enable pointer input specifically for the buttons
+             this.input.enabled = true;
+             console.log("Pointer input re-enabled for Game Over buttons.");
+        });
+
+    } // End triggerGameOver
+} // End Class
