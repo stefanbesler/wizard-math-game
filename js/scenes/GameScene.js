@@ -346,7 +346,7 @@ export default class GameScene extends Phaser.Scene {
 
         // Check for actual game over (no hearts left)
         if (this.currentHearts <= 0) {
-            this.triggerGameOver(); // Game over triggered by health loss
+            this.triggerGameOver();
         }
     }
 
