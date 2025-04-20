@@ -131,9 +131,21 @@ export default class GameScene extends Phaser.Scene {
 
         // --- Player Character ---
         // Place wizard on the left, bottom-aligned
-        this.wizard = this.add.sprite(100, this.cameras.main.height - 80, 'wizard')
+        this.wizard = this.physics.add.sprite(100, this.cameras.main.height - 80, 'wizard') // Use physics.add.sprite
             .setOrigin(0.5, 1) // Origin bottom-center
             .setScale(2.5);    // Make wizard larger
+
+        // --- Adjust Wizard Physics Body ---
+        // Disable gravity for the wizard
+        this.wizard.body.allowGravity = false;
+        // Adjust the body size to better match the visual sprite (tweak as needed)
+        // Since origin is bottom-center, offset needs careful adjustment
+        const bodyWidth = this.wizard.width * 0.4 * this.wizard.scaleX; // Smaller collision width
+        const bodyHeight = this.wizard.height * 0.7 * this.wizard.scaleY; // Adjust height
+        this.wizard.body.setSize(bodyWidth, bodyHeight);
+        // Offset Y upwards because origin is at the bottom
+        this.wizard.body.setOffset(this.wizard.width * 0.5 - bodyWidth / 2, this.wizard.height - bodyHeight);
+
         this.wizard.play('wizard_idle'); // Start idle animation
 
         // Return to idle after casting
@@ -260,6 +272,16 @@ export default class GameScene extends Phaser.Scene {
          if (!this.sound.get('gameMusic')?.isPlaying) {
             this.sound.play('gameMusic', { loop: true, volume: 0.4 }); // Adjust volume as needed
          }
+
+         // --- Enable Physics Body for Droplets on Reuse ---
+         // Ensure the physics body is enabled when a droplet is reused from the pool
+         this.expDroplets.createCallback = (droplet) => {
+             droplet.body?.setEnable(true);
+         };
+         // Also handle removal (disable body when pooled)
+         this.expDroplets.removeCallback = (droplet) => {
+             droplet.body?.setEnable(false);
+         };
     }
 
     update(time, delta) {
