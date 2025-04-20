@@ -1,7 +1,9 @@
-// Import the new enemy classes
+// Import enemy classes
 import Shadow from '../sprites/Shadow.js';
 import Ghost from '../sprites/Ghost.js';
 import Plant from '../sprites/Plant.js';
+// Import EXP Droplet
+import ExpDroplet from '../sprites/ExpDroplet.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -18,14 +20,19 @@ export default class GameScene extends Phaser.Scene {
         // Game state variables
         this.wizard = null;
         this.enemies = null; // Physics group for enemies
-        this.projectiles = null; // Physics group for spells (if needed later)
-        this.particles = null; // Particle emitter manager
+        // this.projectiles = null; // Removed, using specific groups below
+        // this.particles = null; // Removed
+        this.isPausedForLevelUp = false; // NEW: Flag for level up pause state
 
         // UI Elements
         this.questionText = null;
         this.inputText = null;
         this.scoreText = null;
-        // Heart UI elements are now properties above
+        // Heart UI elements are properties above
+        this.expBar = null; // NEW: EXP bar graphics
+        this.expBarBg = null; // NEW: EXP bar background
+        this.levelText = null; // NEW: Level display text
+        this.levelUpContainer = null; // NEW: Container for level up UI
 
         // Gameplay Variables
         this.currentInput = '';
@@ -47,8 +54,34 @@ export default class GameScene extends Phaser.Scene {
         this.selectedTables = [3]; // Default value, will be overwritten by init
 
         // Statistics Collection
-        this.sessionStats = []; // Array to store { num1, num2, answerGiven, correctAnswer, timeTaken, correct }
-        this.questionStartTime = 0; // Timestamp when the current question was shown
+        this.sessionStats = []; // Array to store stats
+        this.questionStartTime = 0; // Timestamp for question timing
+
+        // --- NEW: Leveling System ---
+        this.playerLevel = 1;
+        this.currentExp = 0;
+        this.expToNextLevel = 3; // Initial EXP needed for level 2
+
+        // --- NEW: Spell System ---
+        this.spells = {
+            fireball: {
+                level: 0, // 0 = not learned
+                cooldown: 3000, // ms
+                lastCast: 0,
+                damage: 1 // Base damage
+            },
+            ice: {
+                level: 0,
+                cooldown: 8000,
+                lastCast: 0,
+                duration: 2000 // ms freeze duration
+            }
+        };
+        this.spellKey = null; // To store the keyboard key for spells
+
+        // --- NEW: Physics Groups ---
+        this.expDroplets = null; // Group for EXP droplets
+        this.fireballs = null; // Group for fireball projectiles
     }
 
     // Initialize scene with data passed from the previous scene
@@ -62,14 +95,32 @@ export default class GameScene extends Phaser.Scene {
             this.selectedTables = [3]; // Fallback if no data is passed
         }
         console.log('GameScene will use tables:', this.selectedTables);
+
+        // --- Reset state on init ---
+        this.playerLevel = 1;
+        this.currentExp = 0;
+        this.expToNextLevel = 3;
+        this.isPausedForLevelUp = false;
+        this.score = 0;
+        this.waveNumber = 0;
+        this.sessionStats = [];
+        // Reset spell levels and cooldowns if restarting
+        this.spells.fireball.level = 0;
+        this.spells.fireball.lastCast = 0;
+        this.spells.fireball.damage = 1; // Reset damage too
+        this.spells.ice.level = 0;
+        this.spells.ice.lastCast = 0;
+        this.spells.ice.duration = 2000; // Reset duration
+        // Reset health etc. will happen in create()
     }
 
 
     create() {
         console.log('GameScene: create');
-        this.isGameOver = false; // Reset game over flag
-        this.invulnerable = false; // Reset invulnerability
-        this.currentHearts = this.maxHearts; // Reset health
+        this.isGameOver = false;
+        this.invulnerable = false;
+        this.currentHearts = this.maxHearts;
+        this.isPausedForLevelUp = false; // Ensure reset here too
 
         // --- World Setup ---
         // Background
@@ -99,11 +150,21 @@ export default class GameScene extends Phaser.Scene {
         // although we'll be creating them manually anyway.
         this.enemies = this.physics.add.group({
             classType: Phaser.Physics.Arcade.Sprite, // Base type, actual instances vary
-            runChildUpdate: false // We will manually call update on each enemy
+            runChildUpdate: true // Let enemies run their own update
         });
 
-        // --- Particles --- (Removing - will use tweens instead)
-        // this.particles = this.add.particles('wizard');
+        // --- NEW: Physics Groups ---
+        this.expDroplets = this.physics.add.group({
+            classType: ExpDroplet,
+            runChildUpdate: true // Let droplets manage their own updates
+        });
+        this.fireballs = this.physics.add.group({
+            classType: Phaser.Physics.Arcade.Sprite, // Basic sprites for now
+            runChildUpdate: true,
+            allowGravity: false,
+            maxSize: 10 // Limit number of active fireballs (optional pooling)
+        });
+
 
         // --- UI Elements ---
         // Question Text (Top Center)
@@ -147,8 +208,32 @@ export default class GameScene extends Phaser.Scene {
         }
         this.updateHealthUI(); // Initial display based on currentHearts
 
+        // --- NEW: EXP Bar UI ---
+        const barWidth = 180;
+        const barHeight = 18;
+        const barX = 20;
+        const barY = 20; // Position top-left
+
+        this.expBarBg = this.add.graphics().setDepth(1);
+        this.expBarBg.fillStyle(0x333333, 0.8); // Dark grey background
+        this.expBarBg.fillRect(barX, barY, barWidth, barHeight);
+
+        this.expBar = this.add.graphics().setDepth(2); // On top of background
+        this.expBar.fillStyle(0x00ffff, 1); // Cyan color for EXP
+        this.expBar.fillRect(barX, barY, 0, barHeight); // Start empty
+
+        this.levelText = this.add.text(barX + barWidth / 2, barY + barHeight / 2, `Level: ${this.playerLevel}`, {
+            fontSize: '14px', fill: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(3); // On top of the bar
+
+        this.updateExpBar(); // Draw initial state
+
+
         // --- Input Handling ---
         this.input.keyboard.on('keydown', this.handleKeyInput, this);
+        // NEW: Add key for casting spells
+        this.spellKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
 
         // --- Initial Game State ---
         this.generateQuestion();
@@ -161,6 +246,13 @@ export default class GameScene extends Phaser.Scene {
         this.nextWaveTimer = this.time.delayedCall(initialSpawnDelay, this.startNextWave, [], this);
         console.log(`First wave scheduled in ${initialSpawnDelay / 1000}s`);
 
+        // --- NEW: Collisions / Overlaps ---
+        this.physics.add.overlap(this.wizard, this.expDroplets, this.collectExpDroplet, null, this);
+        this.physics.add.overlap(this.fireballs, this.enemies, this.hitEnemyWithFireball, this.checkFireballHitEnemy, this); // Added processCallback
+
+        // --- NEW: Level Up Screen (create hidden) ---
+        this.createLevelUpScreen();
+
         // Fade in the scene
         this.cameras.main.fadeIn(500, 0, 0, 0);
 
@@ -171,24 +263,48 @@ export default class GameScene extends Phaser.Scene {
     }
 
     update(time, delta) {
-        // Skip update logic if game is over
-        if (this.isGameOver) {
-            return;
+        // --- NEW: Check for pause states ---
+        if (this.isGameOver || this.isPausedForLevelUp) {
+            // Optional: Could add visual indication of pause like dimming
+            return; // Skip updates if game over or paused for level up
         }
 
         // --- Enemy Movement and Checks ---
-        // Manually update each enemy instance
+        // Enemies now run their own update via the group config
+        // We still need to check for crossing the line here
+        // Check for player damage
         this.enemies.getChildren().forEach(enemy => {
-            if (enemy.active) { // Check if enemy is active
-                // Call the enemy's own update method
-                enemy.update(delta);
-
+            if (enemy.active) {
                 // --- Player Damage Check ---
-                // Check if enemy crossed the line AND player is not invulnerable
                 if (enemy.x < this.gameOverLineX && !this.invulnerable) {
                     this.playerTakeDamage(enemy); // Player takes damage
                     // Note: playerTakeDamage handles invulnerability timing
                 }
+            }
+        });
+
+        // --- NEW: Spell Casting Input ---
+        if (Phaser.Input.Keyboard.JustDown(this.spellKey)) {
+            // Try casting Fireball first if learned and ready
+            if (this.spells.fireball.level > 0 && time > this.spells.fireball.lastCast + this.spells.fireball.cooldown) {
+                this.castFireball(time);
+            }
+            // Else try casting Ice if learned and ready
+            else if (this.spells.ice.level > 0 && time > this.spells.ice.lastCast + this.spells.ice.cooldown) {
+                this.castIceSpell(time);
+            }
+            // Add else if for other potential spells later
+        }
+
+        // --- NEW: Update Fireballs (e.g., remove if off-screen) ---
+        // Handled by fireball's own update or preUpdate if it had one.
+        // Alternatively, check here:
+        this.fireballs.getChildren().forEach(fireball => {
+            if (fireball.active && fireball.x > this.cameras.main.width + 50) { // If it goes way off right
+                console.log("Fireball off-screen, disabling.");
+                fireball.setActive(false).setVisible(false); // Pool it
+                fireball.body?.stop();
+                // fireball.destroy(); // Use if not pooling
             }
         });
     }
@@ -250,8 +366,8 @@ export default class GameScene extends Phaser.Scene {
     // --- Input and Answer Handling ---
 
     handleKeyInput(event) {
-        // Ignore input if game is over
-        if (this.isGameOver) {
+        // --- NEW: Ignore input if paused ---
+        if (this.isGameOver || this.isPausedForLevelUp) {
             return;
         }
 
@@ -525,7 +641,8 @@ export default class GameScene extends Phaser.Scene {
     // --- Wave Management ---
 
     startNextWave() {
-        if (this.isGameOver) return;
+        // --- NEW: Check pause state ---
+        if (this.isGameOver || this.isPausedForLevelUp) return;
 
         this.waveNumber++;
         this.enemiesSpawnedThisWave = 0;
@@ -540,11 +657,17 @@ export default class GameScene extends Phaser.Scene {
     }
 
     scheduleNextEnemySpawn(spawnedCount) {
-        if (this.isGameOver || spawnedCount >= this.enemiesPerWave) {
-             // Wave spawning finished, schedule the next wave
-            console.log(`Wave ${this.waveNumber} spawning complete.`);
-            if (this.waveSpawnTimer) this.waveSpawnTimer.remove(false); // Clean up timer
-            this.nextWaveTimer = this.time.delayedCall(this.timeBetweenWaves, this.startNextWave, [], this);
+        // --- NEW: Check pause state and completion ---
+         if (this.isGameOver || this.isPausedForLevelUp || spawnedCount >= this.enemiesPerWave) {
+            // Wave spawning finished or paused, schedule the next wave *only if finished and not paused/over*
+            if (!this.isPausedForLevelUp && !this.isGameOver && spawnedCount >= this.enemiesPerWave) {
+                console.log(`Wave ${this.waveNumber} spawning complete.`);
+                if (this.waveSpawnTimer) this.waveSpawnTimer.remove(false);
+                this.nextWaveTimer = this.time.delayedCall(this.timeBetweenWaves, this.startNextWave, [], this);
+            } else if (this.isPausedForLevelUp) {
+                 console.log(`Wave ${this.waveNumber} spawning paused.`);
+                 // Timer will be resumed in resumeAfterLevelUp if needed
+            }
             return;
         }
 
@@ -716,10 +839,418 @@ export default class GameScene extends Phaser.Scene {
         // This ensures pointer input is also disabled until buttons appear.
         this.input.enabled = false;
         this.time.delayedCall(500, () => {
-             // Re-enable pointer input specifically for the buttons
              this.input.enabled = true;
              console.log("Pointer input re-enabled for Game Over buttons.");
         });
 
     } // End triggerGameOver
+
+
+    // =============================================
+    // --- NEW: EXP and Leveling Methods ---
+    // =============================================
+
+    spawnExpDroplet(x, y) {
+        // Get a droplet from the pool or create a new one
+        const droplet = this.expDroplets.get(x, y); // Uses the classType defined in the group
+        if (droplet) {
+            droplet.setActive(true).setVisible(true);
+            droplet.setPosition(x, y); // Ensure position is set correctly
+            droplet.body?.reset(x, y); // Reset physics body state if pooling
+
+            // Optional: Add a small visual effect on spawn (e.g., scale tween)
+            this.tweens.add({
+                targets: droplet,
+                scale: { from: 0.3, to: 0.6 }, // Adjust scale as needed
+                alpha: { from: 0.5, to: 1.0 },
+                duration: 200,
+                ease: 'Power1'
+            });
+            droplet.moveToPlayer(this.wizard); // Make it fly towards the player
+        } else {
+            console.warn("Could not get ExpDroplet from pool.");
+        }
+    }
+
+    collectExpDroplet(player, droplet) {
+        // Ensure droplet is active before collecting
+        if (!droplet.active) {
+            return;
+        }
+
+        const value = droplet.expValue || 1; // Get value from droplet
+        this.gainExp(value);
+
+        // Play sound (using existing coin sound)
+        this.sound.play('correctSound', { volume: 0.4, detune: 200 }); // Slightly higher pitch?
+
+        // Disable and hide the droplet (pooling)
+        droplet.setActive(false).setVisible(false);
+        // Stop its movement immediately
+        if (droplet.body) {
+            droplet.body.stop();
+            droplet.body.enable = false; // Disable physics body until reused
+        }
+        // Optional: Add a small visual effect on collection (e.g., particle burst at player)
+    }
+
+    gainExp(amount) {
+        if (this.isGameOver || this.isPausedForLevelUp) return; // Don't gain EXP if paused or game over
+
+        this.currentExp += amount;
+        console.log(`Gained ${amount} EXP. Total: ${this.currentExp}/${this.expToNextLevel}`);
+        this.updateExpBar(); // Update the visual bar
+
+        // Check for level up (can level up multiple times from one collection)
+        while (this.currentExp >= this.expToNextLevel && !this.isPausedForLevelUp) {
+             // Check pause flag again in case multiple level ups happen quickly
+            this.levelUp();
+        }
+    }
+
+    updateExpBar() {
+        if (!this.expBar || !this.expBarBg || !this.levelText) return; // Check if UI exists
+
+        this.expBar.clear();
+        this.expBar.fillStyle(0x00ffff, 1); // Cyan EXP color
+
+        // Calculate percentage, ensuring it's between 0 and 1
+        const percentage = Phaser.Math.Clamp(this.currentExp / this.expToNextLevel, 0, 1);
+        const barWidth = 180; // Must match the width used in create()
+        const barHeight = 18; // Must match height
+        const barX = 20; // Must match X
+        const barY = 20; // Must match Y
+        const currentBarWidth = barWidth * percentage;
+
+        this.expBar.fillRect(barX, barY, currentBarWidth, barHeight);
+
+        // Update level text as well
+        this.levelText.setText(`Level: ${this.playerLevel}`);
+    }
+
+    levelUp() {
+        // Prevent level up if already paused (e.g., from a previous level up this frame)
+        if (this.isPausedForLevelUp) return;
+
+        this.currentExp -= this.expToNextLevel; // Subtract cost, keep remainder
+        this.playerLevel++;
+
+        // Increase EXP requirement for the *next* level
+        // Example: Needs 3, then 3+4=7, then 7+5=12, then 12+6=18 etc.
+        this.expToNextLevel += (this.playerLevel + 1);
+
+        console.log(`%cLEVEL UP! Reached Level ${this.playerLevel}. Next level at ${this.expToNextLevel} EXP. Remainder: ${this.currentExp}`, 'color: yellow; font-weight: bold;');
+
+        this.updateExpBar(); // Update bar with new values (shows remainder EXP)
+
+        // --- Trigger Level Up Screen ---
+        this.pauseForLevelUp();
+        this.showLevelUpScreen();
+
+        // Optional: Add visual/audio feedback for level up (flash, sound)
+        // this.sound.play('levelUpSound'); // Add sound when available
+        this.cameras.main.flash(250, 255, 255, 0); // White flash
+    }
+
+    // =============================================
+    // --- NEW: Pause and Level Up Screen Methods ---
+    // =============================================
+
+    pauseForLevelUp() {
+        if (this.isPausedForLevelUp) return; // Already paused
+
+        console.log("Pausing game for Level Up selection.");
+        this.isPausedForLevelUp = true;
+        // Pause physics simulation BUT keep physics bodies active for potential interactions if needed
+        this.physics.world.pause();
+
+        // Pause wave timers explicitly
+        if (this.waveSpawnTimer) this.waveSpawnTimer.paused = true;
+        if (this.nextWaveTimer) this.nextWaveTimer.paused = true;
+
+        // Pause individual enemies
+        this.enemies.getChildren().forEach(enemy => {
+            if (enemy.active && typeof enemy.pause === 'function') {
+                enemy.pause();
+            }
+        });
+
+        // Pause projectiles/droplets movement
+        this.expDroplets.getChildren().forEach(d => d.body?.stop());
+        this.fireballs.getChildren().forEach(f => f.body?.stop());
+
+        // Pause player animations
+        this.wizard.anims.pause();
+    }
+
+    resumeAfterLevelUp() {
+        if (!this.isPausedForLevelUp) return; // Not paused
+
+        console.log("Resuming game after Level Up selection.");
+        this.isPausedForLevelUp = false;
+        // Resume physics simulation
+        this.physics.world.resume();
+
+        // Resume wave timers
+        if (this.waveSpawnTimer) this.waveSpawnTimer.paused = false;
+        if (this.nextWaveTimer) this.nextWaveTimer.paused = false;
+
+        // Resume individual enemies
+        this.enemies.getChildren().forEach(enemy => {
+            if (enemy.active && typeof enemy.resume === 'function') {
+                enemy.resume();
+            }
+        });
+
+         // Resume projectiles/droplets movement
+         this.expDroplets.getChildren().forEach(droplet => {
+             if (droplet.active) {
+                 // Restart movement towards player if it hasn't reached yet
+                 this.physics.moveToObject(droplet, this.wizard, droplet.moveSpeed);
+             }
+         });
+         this.fireballs.getChildren().forEach(fireball => {
+             if (fireball.active) {
+                 // Reapply velocity if it was stopped
+                 // Assuming simple rightward movement for now
+                 fireball.body.velocity.x = 450; // Use the speed defined in castFireball
+             }
+         });
+
+         // Resume player animation
+         this.wizard.anims.resume();
+         // Ensure idle animation plays if nothing else is overriding it
+         if (this.wizard.anims.currentAnim?.key !== 'wizard_cast') {
+             this.wizard.play('wizard_idle', true);
+         }
+    }
+
+    createLevelUpScreen() {
+        // Create container but keep it hidden
+        this.levelUpContainer = this.add.container(this.cameras.main.width / 2, this.cameras.main.height / 2)
+            .setDepth(20) // Ensure it's on top of everything
+            .setVisible(false);
+
+        // Background panel using graphics
+        const bg = this.add.graphics()
+            .fillStyle(0x111144, 0.9) // Dark blue, mostly opaque
+            .fillRoundedRect(-250, -180, 500, 360, 15) // Centered rectangle
+            .lineStyle(3, 0xeeeeff, 1)
+            .strokeRoundedRect(-250, -180, 500, 360, 15);
+
+        // Title
+        const title = this.add.text(0, -140, 'Level Up!', {
+            fontSize: '40px', fill: '#FFD700', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+        }).setOrigin(0.5);
+
+        // --- Upgrade Option Buttons ---
+        const buttonStyle = {
+            fontSize: '24px', fill: '#fff', backgroundColor: '#00008B', // Dark blue background
+            padding: { x: 15, y: 10 },
+            fixedWidth: 350, // Ensure buttons have same width
+            align: 'center',
+            fontStyle: 'bold'
+        };
+        const buttonHoverStyle = { fill: '#add8e6' }; // Light blue on hover
+
+        // Fireball Button
+        const fireballButton = this.add.text(0, -50, '', buttonStyle)
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true });
+
+        fireballButton.on('pointerdown', () => this.selectUpgrade('fireball'));
+        fireballButton.on('pointerover', () => fireballButton.setStyle(buttonHoverStyle));
+        fireballButton.on('pointerout', () => fireballButton.setStyle({ fill: '#fff' })); // Reset color
+
+        // Ice Spell Button
+        const iceButton = this.add.text(0, 30, '', buttonStyle)
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true });
+
+        iceButton.on('pointerdown', () => this.selectUpgrade('ice'));
+        iceButton.on('pointerover', () => iceButton.setStyle(buttonHoverStyle));
+        iceButton.on('pointerout', () => iceButton.setStyle({ fill: '#fff' })); // Reset color
+
+        // Add elements to the container
+        this.levelUpContainer.add([bg, title, fireballButton, iceButton]);
+
+        // Store references to buttons for easy text updates
+        this.levelUpContainer.setData('fireballButton', fireballButton);
+        this.levelUpContainer.setData('iceButton', iceButton);
+    }
+
+    showLevelUpScreen() {
+        if (!this.levelUpContainer) return;
+
+        const fireballButton = this.levelUpContainer.getData('fireballButton');
+        const iceButton = this.levelUpContainer.getData('iceButton');
+
+        // Update button text based on current spell levels
+        const fbLevel = this.spells.fireball.level;
+        const iceLevel = this.spells.ice.level;
+
+        const fbDesc = ` (CD: ${this.spells.fireball.cooldown/1000}s, Dmg: ${this.spells.fireball.damage})`;
+        const iceDesc = ` (CD: ${this.spells.ice.cooldown/1000}s, Dur: ${this.spells.ice.duration/1000}s)`;
+
+        fireballButton.setText(fbLevel === 0 ? 'Learn Fireball' : `Upgrade Fireball (Lvl ${fbLevel + 1})` + fbDesc);
+        iceButton.setText(iceLevel === 0 ? 'Learn Ice Spell' : `Upgrade Ice Spell (Lvl ${iceLevel + 1})` + iceDesc);
+
+        this.levelUpContainer.setVisible(true);
+        // Optional: Add a tween animation for appearing
+        this.levelUpContainer.setScale(0.8).setAlpha(0.5);
+        this.tweens.add({
+            targets: this.levelUpContainer,
+            scale: 1.0,
+            alpha: 1.0,
+            duration: 200,
+            ease: 'Back.easeOut' // A little bounce effect
+        });
+    }
+
+    selectUpgrade(spellKey) {
+        // Ensure screen is visible and game is paused before selecting
+        if (!this.spells[spellKey] || !this.isPausedForLevelUp || !this.levelUpContainer.visible) return;
+
+        this.spells[spellKey].level++; // Increment level
+        console.log(`Selected upgrade: ${spellKey}, now level ${this.spells[spellKey].level}`);
+
+        // Apply the actual upgrade effects
+        this.applySpellUpgrade(spellKey);
+
+        // Hide the screen and resume game
+        this.levelUpContainer.setVisible(false);
+        this.resumeAfterLevelUp();
+    }
+
+    applySpellUpgrade(spellKey) {
+        const spell = this.spells[spellKey];
+        if (!spell) return;
+
+        const level = spell.level; // Current level *after* incrementing
+
+        // Apply upgrades based on the new level
+        if (spellKey === 'fireball') {
+            // Example: Reduce cooldown, increase damage
+            spell.cooldown = Math.max(500, 3500 - (level * 500)); // Faster cooldown per level (min 0.5s)
+            spell.damage = 1 + Math.floor(level / 2); // Increase damage every 2 levels
+            console.log(`Fireball upgraded: Cooldown ${spell.cooldown}ms, Damage ${spell.damage}`);
+        } else if (spellKey === 'ice') {
+            // Example: Reduce cooldown, increase duration
+            spell.cooldown = Math.max(2000, 9000 - (level * 1000)); // Faster cooldown per level (min 2s)
+            spell.duration = 2000 + (level * 500); // Longer freeze per level
+            console.log(`Ice Spell upgraded: Cooldown ${spell.cooldown}ms, Duration ${spell.duration}ms`);
+        }
+    }
+
+
+    // =============================================
+    // --- NEW: Spell Casting Methods ---
+    // =============================================
+
+    castFireball(time) {
+        console.log("Casting Fireball!");
+        this.spells.fireball.lastCast = time; // Record cast time for cooldown
+        this.sound.play('castSound', { volume: 0.7 }); // Reuse cast sound
+
+        // Play wizard cast animation (if not already playing)
+        this.wizard.play('wizard_cast', true); // Force restart
+
+        // Create fireball sprite from the wizard's wand position
+        const wandX = this.wizard.x + 25; // Adjust offset based on wizard sprite
+        const wandY = this.wizard.y - 65; // Adjust offset
+        const fireballSpeed = 450; // Pixels per second
+
+        // Get a fireball from the pool
+        const fireball = this.fireballs.get(wandX, wandY, 'fireball');
+        if (fireball) {
+            fireball.setActive(true).setVisible(true);
+            fireball.setPosition(wandX, wandY); // Ensure position
+            fireball.setScale(1.2); // Make it slightly larger?
+            fireball.setTint(0xffddaa); // Orangey tint
+            fireball.setData('damage', this.spells.fireball.damage); // Store current damage
+            fireball.setDepth(this.wizard.depth - 1); // Appear behind wizard initially? Or above?
+
+            // Enable physics body if reusing from pool
+            fireball.body?.setEnable(true);
+            fireball.body?.reset(wandX, wandY);
+            fireball.body?.setSize(fireball.width * 0.6, fireball.height * 0.6); // Adjust collision shape if needed
+
+            // Simple targeting: Aim straight right
+            fireball.setVelocityX(fireballSpeed);
+            fireball.setVelocityY(0);
+
+            // Optional: Add particle trail?
+        } else {
+            console.warn("Fireball pool empty or failed to create.");
+        }
+    }
+
+    // Process callback for fireball/enemy overlap
+    checkFireballHitEnemy(fireball, enemy) {
+        // Only allow active fireballs to hit active, non-frozen enemies
+        return fireball.active && enemy.active && !enemy.isFrozen;
+    }
+
+    hitEnemyWithFireball(fireball, enemy) {
+        // Double check active state here just in case processCallback fails somehow
+        if (!fireball.active || !enemy.active) {
+            return;
+        }
+
+        console.log(`Fireball hit ${enemy.constructor.name}`);
+        const damage = fireball.getData('damage') || 1;
+
+        // Play hit sound
+        this.sound.play('enemyHitSound', { volume: 0.6 }); // Reuse explosion sound
+
+        // Apply damage to the enemy
+        const defeated = enemy.takeDamage(damage); // Enemy handles its own death/effects
+
+        // Optional: Create a small explosion effect at the impact point using graphics
+        const explosion = this.add.graphics({ x: fireball.x, y: fireball.y });
+        explosion.fillStyle(0xffaa00, 0.8);
+        explosion.fillCircle(0, 0, 10);
+        this.tweens.add({
+            targets: explosion,
+            scale: 3,
+            alpha: 0,
+            duration: 150,
+            onComplete: () => explosion.destroy()
+        });
+
+
+        // Disable the fireball (pool it)
+        fireball.setActive(false).setVisible(false);
+        fireball.body?.stop();
+        fireball.body?.setEnable(false);
+    }
+
+    castIceSpell(time) {
+        console.log("Casting Ice Spell!");
+        this.spells.ice.lastCast = time; // Record cast time
+        // this.sound.play('iceSound'); // Play specific ice sound when available
+
+        // Play wizard cast animation
+        this.wizard.play('wizard_cast', true);
+
+        const freezeDuration = this.spells.ice.duration;
+
+        // Visual effect: Screen flash blue + temporary frost overlay?
+        this.cameras.main.flash(150, 100, 150, 255); // Blue-ish flash
+        const frost = this.add.graphics()
+            .fillStyle(0xadd8e6, 0.2) // Light blue, semi-transparent
+            .fillRect(0, 0, this.cameras.main.width, this.cameras.main.height)
+            .setDepth(15); // High depth
+        this.time.delayedCall(300, () => frost.destroy()); // Remove frost effect
+
+
+        // Apply freeze to all active enemies
+        this.enemies.getChildren().forEach(enemy => {
+            // Check enemy is active and has the freeze method
+            if (enemy.active && typeof enemy.freeze === 'function') {
+                enemy.freeze(freezeDuration);
+            }
+        });
+    }
+
 } // End Class

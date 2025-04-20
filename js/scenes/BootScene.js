@@ -37,6 +37,11 @@ export default class BootScene extends Phaser.Scene {
         this.load.image('heart', 'assets/sprites/heart.png'); // Heart outline
         this.load.image('heart-filled', 'assets/sprites/heart-filled.png'); // Heart fill
 
+        // --- NEW: EXP and Spell Assets ---
+        this.load.image('exp_droplet', 'assets/sprites/exp_droplet.png');
+        this.load.image('fireball', 'assets/sprites/fireball.png');
+        // --- END NEW ---
+
         // Placeholder for Sounds (Uncomment and add paths when you have sound files)
         // Music
         this.load.audio('startMusic', 'assets/music/Start.mp3');
@@ -46,8 +51,10 @@ export default class BootScene extends Phaser.Scene {
         this.load.audio('castSound', 'assets/sounds/foom.wav');
         this.load.audio('enemyHitSound', 'assets/sounds/explosion.wav');
         this.load.audio('gameOverSound', 'assets/sounds/gameover.wav');
-        this.load.audio('correctSound', 'assets/sounds/pickupCoin.wav');
+        this.load.audio('correctSound', 'assets/sounds/pickupCoin.wav'); // Used for EXP pickup too
         this.load.audio('wrongSound', 'assets/sounds/hitHurt.wav');
+        // this.load.audio('iceSound', 'assets/sounds/ice_spell.wav'); // Add when available
+        // this.load.audio('levelUpSound', 'assets/sounds/level_up.wav'); // Add when available
 
 
         // --- Loading Progress --- (Optional but nice)
