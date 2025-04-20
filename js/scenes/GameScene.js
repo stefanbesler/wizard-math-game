@@ -74,10 +74,12 @@ export default class GameScene extends Phaser.Scene {
                 level: 0,
                 cooldown: 8000,
                 lastCast: 0,
-                duration: 2000 // ms freeze duration
+                duration: 3000 // ms freeze duration - INCREASED BASE DURATION
             }
         };
         this.spellKey = null; // To store the keyboard key for spells
+        this.fireballCooldownIcon = null; // NEW: UI for fireball cooldown
+        this.iceCooldownIcon = null;      // NEW: UI for ice cooldown
 
         // --- NEW: Physics Groups ---
         this.expDroplets = null; // Group for EXP droplets
@@ -110,7 +112,7 @@ export default class GameScene extends Phaser.Scene {
         this.spells.fireball.damage = 1; // Reset damage too
         this.spells.ice.level = 0;
         this.spells.ice.lastCast = 0;
-        this.spells.ice.duration = 2000; // Reset duration
+        this.spells.ice.duration = 3000; // Reset duration to new base
         // Reset health etc. will happen in create()
     }
 
@@ -240,6 +242,9 @@ export default class GameScene extends Phaser.Scene {
 
         this.updateExpBar(); // Draw initial state
 
+        // --- NEW: Spell Cooldown UI ---
+        this.createSpellCooldownUI();
+
 
         // --- Input Handling ---
         this.input.keyboard.on('keydown', this.handleKeyInput, this);
@@ -329,6 +334,9 @@ export default class GameScene extends Phaser.Scene {
                 // fireball.destroy(); // Use if not pooling
             }
         });
+
+        // --- NEW: Update Spell Cooldown UI ---
+        this.updateSpellCooldownUI(time);
     }
 
     // --- Player Health and Damage ---
@@ -1159,9 +1167,12 @@ export default class GameScene extends Phaser.Scene {
         } else if (spellKey === 'ice') {
             // Example: Reduce cooldown, increase duration
             spell.cooldown = Math.max(2000, 9000 - (level * 1000)); // Faster cooldown per level (min 2s)
-            spell.duration = 2000 + (level * 500); // Longer freeze per level
+            spell.duration = 3000 + (level * 750); // Longer freeze per level - INCREASED DURATION PER LEVEL
             console.log(`Ice Spell upgraded: Cooldown ${spell.cooldown}ms, Duration ${spell.duration}ms`);
         }
+
+        // Update UI immediately after upgrade to show the icon if just learned
+        this.updateSpellCooldownUI(this.time.now);
     }
 
 
@@ -1173,6 +1184,9 @@ export default class GameScene extends Phaser.Scene {
         console.log("Casting Fireball!");
         this.spells.fireball.lastCast = time; // Record cast time for cooldown
         this.sound.play('castSound', { volume: 0.7 }); // Reuse cast sound
+
+        // --- NEW: Update Cooldown UI immediately ---
+        this.updateSpellCooldownUI(time);
 
         // Play wizard cast animation (if not already playing)
         this.wizard.play('wizard_cast', true); // Force restart
@@ -1252,6 +1266,9 @@ export default class GameScene extends Phaser.Scene {
         this.spells.ice.lastCast = time; // Record cast time
         // this.sound.play('iceSound'); // Play specific ice sound when available
 
+        // --- NEW: Update Cooldown UI immediately ---
+        this.updateSpellCooldownUI(time);
+
         // Play wizard cast animation
         this.wizard.play('wizard_cast', true);
 
@@ -1273,6 +1290,86 @@ export default class GameScene extends Phaser.Scene {
                 enemy.freeze(freezeDuration);
             }
         });
+    }
+
+
+    // =============================================
+    // --- NEW: Spell Cooldown UI Methods ---
+    // =============================================
+
+    createSpellCooldownUI() {
+        const iconSize = 50;
+        const padding = 15;
+        const startY = 60; // Below EXP bar
+        const iconX = padding + iconSize / 2;
+
+        // --- Fireball Icon ---
+        this.fireballCooldownIcon = this.add.container(iconX, startY).setDepth(5).setVisible(false);
+        const fbBg = this.add.graphics().fillStyle(0x8B0000, 0.7).fillCircle(0, 0, iconSize / 2); // Dark red background
+        const fbIcon = this.add.sprite(0, 0, 'fireball').setScale(iconSize / this.textures.get('fireball').getSourceImage().width * 0.8); // Scale fireball sprite to fit
+        const fbMaskShape = this.make.graphics(); // Mask to show cooldown
+        this.fireballCooldownIcon.add([fbBg, fbIcon, fbMaskShape]);
+        this.fireballCooldownIcon.setData('mask', fbMaskShape);
+        fbIcon.mask = new Phaser.Display.Masks.GeometryMask(this, fbMaskShape);
+        fbIcon.mask.invertAlpha = true; // Reveal part covered by mask
+
+        // --- Ice Icon ---
+        const iceY = startY + iconSize + padding;
+        this.iceCooldownIcon = this.add.container(iconX, iceY).setDepth(5).setVisible(false);
+        const iceBg = this.add.graphics().fillStyle(0x00008B, 0.7).fillCircle(0, 0, iconSize / 2); // Dark blue background
+        // Placeholder graphics for ice icon until we have an asset
+        const iceIconGraphics = this.add.graphics()
+            .fillStyle(0xadd8e6) // Light blue
+            .fillCircle(0, 0, iconSize * 0.35) // Smaller inner circle
+            .lineStyle(2, 0xffffff)
+            .strokeCircle(0, 0, iconSize * 0.35);
+        const iceMaskShape = this.make.graphics();
+        this.iceCooldownIcon.add([iceBg, iceIconGraphics, iceMaskShape]);
+        this.iceCooldownIcon.setData('mask', iceMaskShape);
+        iceIconGraphics.mask = new Phaser.Display.Masks.GeometryMask(this, iceMaskShape);
+        iceIconGraphics.mask.invertAlpha = true;
+
+        // Initial update
+        this.updateSpellCooldownUI(this.time.now);
+    }
+
+    updateSpellCooldownUI(time) {
+        const iconSize = 50;
+
+        // --- Fireball ---
+        const fbSpell = this.spells.fireball;
+        if (fbSpell.level > 0) {
+            this.fireballCooldownIcon.setVisible(true);
+            const elapsed = time - fbSpell.lastCast;
+            const progress = Phaser.Math.Clamp(elapsed / fbSpell.cooldown, 0, 1); // 0 = full cooldown, 1 = ready
+            const mask = this.fireballCooldownIcon.getData('mask');
+            mask.clear();
+            if (progress < 1) {
+                mask.fillStyle(0xffffff);
+                // Draw a pie shape representing the remaining cooldown
+                mask.slice(0, 0, iconSize / 2, Phaser.Math.DegToRad(270), Phaser.Math.DegToRad(270 + (1 - progress) * 360), true);
+                mask.fillPath();
+            }
+        } else {
+            this.fireballCooldownIcon.setVisible(false);
+        }
+
+        // --- Ice ---
+        const iceSpell = this.spells.ice;
+        if (iceSpell.level > 0) {
+            this.iceCooldownIcon.setVisible(true);
+            const elapsed = time - iceSpell.lastCast;
+            const progress = Phaser.Math.Clamp(elapsed / iceSpell.cooldown, 0, 1);
+            const mask = this.iceCooldownIcon.getData('mask');
+            mask.clear();
+            if (progress < 1) {
+                mask.fillStyle(0xffffff);
+                mask.slice(0, 0, iconSize / 2, Phaser.Math.DegToRad(270), Phaser.Math.DegToRad(270 + (1 - progress) * 360), true);
+                mask.fillPath();
+            }
+        } else {
+            this.iceCooldownIcon.setVisible(false);
+        }
     }
 
 } // End Class
