@@ -267,8 +267,13 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.wizard, this.expDroplets, this.collectExpDroplet, null, this);
         this.physics.add.overlap(this.fireballs, this.enemies, this.hitEnemyWithFireball, this.checkFireballHitEnemy, this); // Added processCallback
 
-        // --- NEW: Level Up Screen (create hidden) ---
+        // --- Level Up Screen (create hidden) ---
         this.createLevelUpScreen();
+
+        // --- NEW: Pause Text (create hidden) ---
+        this.pauseText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, 'PAUSED', {
+            fontSize: '64px', fill: '#ffff00', fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
+        }).setOrigin(0.5).setDepth(30).setVisible(false); // High depth, initially hidden
 
         // Fade in the scene
         this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -396,8 +401,8 @@ export default class GameScene extends Phaser.Scene {
     // --- Input and Answer Handling ---
 
     handleKeyInput(event) {
-        // --- NEW: Ignore input if paused ---
-        if (this.isGameOver || this.isPausedForLevelUp) {
+        // --- Ignore input if paused or game over ---
+        if (this.isGameOver || this.isPausedForLevelUp || this.isPaused) {
             return;
         }
 
@@ -783,6 +788,9 @@ export default class GameScene extends Phaser.Scene {
 
         // Stop player input
         this.input.keyboard.off('keydown', this.handleKeyInput, this);
+        // Remove pause key listener too
+        if (this.pauseKey) this.pauseKey.enabled = false;
+
 
         // Visual feedback
         this.cameras.main.shake(300, 0.015);
@@ -991,7 +999,12 @@ export default class GameScene extends Phaser.Scene {
 
         console.log("Pausing game for Level Up selection.");
         this.isPausedForLevelUp = true;
-        // Pause physics simulation BUT keep physics bodies active for potential interactions if needed
+        // Disable manual pause while level up screen is shown
+        if (this.isPaused) {
+            this.resumeGame(); // Ensure manual pause is undone if active
+        }
+
+        // Pause physics simulation
         this.physics.world.pause();
 
         // Pause wave timers explicitly
@@ -1018,7 +1031,7 @@ export default class GameScene extends Phaser.Scene {
 
         console.log("Resuming game after Level Up selection.");
         this.isPausedForLevelUp = false;
-        // Resume physics simulation
+        // Resume physics simulation (manual pause state remains false)
         this.physics.world.resume();
 
         // Resume wave timers
@@ -1369,6 +1382,83 @@ export default class GameScene extends Phaser.Scene {
             }
         } else {
             this.iceCooldownIcon.setVisible(false);
+        }
+    }
+
+
+    // =============================================
+    // --- NEW: Manual Pause Methods ---
+    // =============================================
+
+    togglePause() {
+        if (this.isPaused) {
+            this.resumeGame();
+        } else {
+            // Do not allow pausing if level up screen is active
+            if (!this.isPausedForLevelUp) {
+                this.pauseGame();
+            }
+        }
+    }
+
+    pauseGame() {
+        if (this.isPaused || this.isPausedForLevelUp || this.isGameOver) return; // Prevent pausing if already paused/leveling/game over
+
+        console.log("Game Paused Manually");
+        this.isPaused = true;
+        this.pauseText.setVisible(true);
+
+        // Pause physics
+        this.physics.world.pause();
+
+        // Pause timers
+        if (this.waveSpawnTimer) this.waveSpawnTimer.paused = true;
+        if (this.nextWaveTimer) this.nextWaveTimer.paused = true;
+        if (this.invulnerableTimer) this.invulnerableTimer.paused = true; // Pause invulnerability timer
+
+        // Pause animations/movement for player and enemies
+        this.wizard.anims?.pause();
+        this.enemies.getChildren().forEach(enemy => enemy.pause()); // Use existing pause method
+        this.expDroplets.getChildren().forEach(d => d.body?.stop());
+        this.fireballs.getChildren().forEach(f => f.body?.stop());
+
+        // Optional: Lower music volume
+        const music = this.sound.get('gameMusic');
+        if (music?.isPlaying) {
+            music.setVolume(0.1); // Lower volume significantly
+        }
+    }
+
+    resumeGame() {
+        if (!this.isPaused || this.isPausedForLevelUp || this.isGameOver) return; // Prevent resuming if not paused or leveling/game over
+
+        console.log("Game Resumed Manually");
+        this.isPaused = false;
+        this.pauseText.setVisible(false);
+
+        // Resume physics
+        this.physics.world.resume();
+
+        // Resume timers
+        if (this.waveSpawnTimer) this.waveSpawnTimer.paused = false;
+        if (this.nextWaveTimer) this.nextWaveTimer.paused = false;
+        if (this.invulnerableTimer) this.invulnerableTimer.paused = false; // Resume invulnerability timer
+
+        // Resume animations/movement
+        this.wizard.anims?.resume();
+        this.enemies.getChildren().forEach(enemy => enemy.resume()); // Use existing resume method
+        // Restart movement for droplets/fireballs
+        this.expDroplets.getChildren().forEach(droplet => {
+             if (droplet.active) this.physics.moveToObject(droplet, this.wizard, droplet.moveSpeed);
+         });
+         this.fireballs.getChildren().forEach(fireball => {
+             if (fireball.active) fireball.body.velocity.x = 450; // Reapply velocity
+         });
+
+        // Optional: Restore music volume
+        const music = this.sound.get('gameMusic');
+        if (music?.isPlaying) {
+            music.setVolume(0.4); // Restore original volume
         }
     }
 
