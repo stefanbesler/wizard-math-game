@@ -22,7 +22,8 @@ export default class GameScene extends Phaser.Scene {
         this.enemies = null; // Physics group for enemies
         // this.projectiles = null; // Removed, using specific groups below
         // this.particles = null; // Removed
-        this.isPausedForLevelUp = false; // NEW: Flag for level up pause state
+        this.isPausedForLevelUp = false; // Flag for level up pause state
+        this.isPaused = false; // Flag for manual pause state
 
         // UI Elements
         this.questionText = null;
@@ -33,6 +34,7 @@ export default class GameScene extends Phaser.Scene {
         this.expBarBg = null; // NEW: EXP bar background
         this.levelText = null; // NEW: Level display text
         this.levelUpContainer = null; // NEW: Container for level up UI
+        this.pauseText = null; // Text display for manual pause
 
         // Gameplay Variables
         this.currentInput = '';
@@ -80,6 +82,7 @@ export default class GameScene extends Phaser.Scene {
         this.spellKey = null; // To store the keyboard key for spells
         this.fireballCooldownIcon = null; // NEW: UI for fireball cooldown
         this.iceCooldownIcon = null;      // NEW: UI for ice cooldown
+        this.pauseKey = null; // Key for manual pause
 
         // --- NEW: Physics Groups ---
         this.expDroplets = null; // Group for EXP droplets
@@ -103,6 +106,7 @@ export default class GameScene extends Phaser.Scene {
         this.currentExp = 0;
         this.expToNextLevel = 3;
         this.isPausedForLevelUp = false;
+        this.isPaused = false; // Reset manual pause state on init
         this.score = 0;
         this.waveNumber = 0;
         this.sessionStats = [];
@@ -248,8 +252,10 @@ export default class GameScene extends Phaser.Scene {
 
         // --- Input Handling ---
         this.input.keyboard.on('keydown', this.handleKeyInput, this);
-        // NEW: Add key for casting spells
+        // Add key for casting spells
         this.spellKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        // Add key for pausing
+        this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
 
 
         // --- Initial Game State ---
@@ -295,11 +301,23 @@ export default class GameScene extends Phaser.Scene {
     }
 
     update(time, delta) {
-        // --- NEW: Check for pause states ---
-        if (this.isGameOver || this.isPausedForLevelUp) {
-            // Optional: Could add visual indication of pause like dimming
-            return; // Skip updates if game over or paused for level up
+        // --- Check for Game Over ---
+        if (this.isGameOver) {
+            return;
         }
+
+        // --- Handle Manual Pause Input ---
+        // Allow pausing only if not already paused for level up
+        if (Phaser.Input.Keyboard.JustDown(this.pauseKey) && !this.isPausedForLevelUp) {
+            this.togglePause();
+        }
+
+        // --- Check for ALL pause states ---
+        if (this.isPaused || this.isPausedForLevelUp) {
+            // Optional: Could add visual indication of pause like dimming
+            return; // Skip updates if game over or paused for level up / manually
+        }
+
 
         // --- Enemy Movement and Checks ---
         // Enemies now run their own update via the group config
