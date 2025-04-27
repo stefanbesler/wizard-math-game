@@ -1477,6 +1477,9 @@ export default class GameScene extends Phaser.Scene {
         console.log("Game Paused Manually");
         this.isPaused = true;
         this.pauseText.setVisible(true);
+        // Hide calculation UI
+        this.questionText.setVisible(false);
+        this.inputText.setVisible(false);
 
         // Pause physics
         this.physics.world.pause();
@@ -1505,6 +1508,9 @@ export default class GameScene extends Phaser.Scene {
         console.log("Game Resumed Manually");
         this.isPaused = false;
         this.pauseText.setVisible(false);
+        // Show calculation UI
+        this.questionText.setVisible(true);
+        this.inputText.setVisible(true);
 
         // Resume physics
         this.physics.world.resume();
