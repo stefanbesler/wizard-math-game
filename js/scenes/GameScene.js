@@ -1095,13 +1095,7 @@ export default class GameScene extends Phaser.Scene {
                  this.physics.moveToObject(droplet, this.wizard, droplet.moveSpeed);
              }
          });
-         this.fireballs.getChildren().forEach(fireball => {
-             if (fireball.active) {
-                 // Reapply velocity if it was stopped
-                 // Assuming simple rightward movement for now
-                 fireball.body.velocity.x = 450; // Use the speed defined in castFireball
-             }
-         });
+         // Fireball resume logic REMOVED
 
          // Resume player animation
          this.wizard.anims.resume();
