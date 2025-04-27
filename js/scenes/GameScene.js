@@ -87,6 +87,7 @@ export default class GameScene extends Phaser.Scene {
         // --- NEW: Physics Groups ---
         this.expDroplets = null; // Group for EXP droplets
         this.fireballs = null; // Group for fireball projectiles
+        this.allowedEnemyTypes = []; // NEW: Tracks enemies allowed in the current wave
     }
 
     // Initialize scene with data passed from the previous scene
@@ -694,18 +695,48 @@ export default class GameScene extends Phaser.Scene {
     // --- Wave Management ---
 
     startNextWave() {
-        // --- NEW: Check pause state ---
-        if (this.isGameOver || this.isPausedForLevelUp) return;
+        // --- Check pause state ---
+        if (this.isGameOver || this.isPausedForLevelUp || this.isPaused) return; // Added check for manual pause
 
         this.waveNumber++;
         this.enemiesSpawnedThisWave = 0;
-        // Increase difficulty: more enemies per wave, less time between waves
-        this.enemiesPerWave = 2 + Math.floor(this.waveNumber / 2); // Example: increases every 2 waves
-        this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves, 8000 - this.waveNumber * 150); // Decrease time between waves gradually
 
-        console.log(`Starting Wave ${this.waveNumber}: Spawning ${this.enemiesPerWave} enemies. Next wave in ${this.timeBetweenWaves / 1000}s.`);
+        // --- Define Difficulty Phases ---
+        const phase1EndWave = 4;  // Waves 1-4: Ghosts only
+        const phase2EndWave = 9;  // Waves 5-9: Ghosts & Shadows
+        // Phase 3 (Waves 10+): All enemies
 
-        // Start spawning enemies for the current wave, considering 'loner' property
+        // --- Set Parameters Based on Phase ---
+        if (this.waveNumber <= phase1EndWave) {
+            // Phase 1: Ghosts Only, Very Easy
+            this.allowedEnemyTypes = [Ghost];
+            this.enemiesPerWave = 1 + Math.floor(this.waveNumber / 2); // 1, 1, 2, 2
+            this.timeBetweenWaves = Phaser.Math.Between(13000, 15000); // Long breaks (13-15s)
+            this.timeBetweenEnemiesInWave = 1500; // Slower spawns within wave
+            console.log(`--- Phase 1 (Wave ${this.waveNumber}) ---`);
+
+        } else if (this.waveNumber <= phase2EndWave) {
+            // Phase 2: Ghosts & Shadows, Introduce Speed
+            this.allowedEnemyTypes = [Ghost, Shadow];
+            // Start at 2, increase slowly
+            this.enemiesPerWave = 2 + Math.floor((this.waveNumber - phase1EndWave) / 2); // 2, 2, 3, 3, 4
+            this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves + 2000, 12000 - (this.waveNumber - phase1EndWave) * 400); // Decrease faster (12s -> ~10s)
+            this.timeBetweenEnemiesInWave = 1200; // Slightly faster spawns
+            console.log(`--- Phase 2 (Wave ${this.waveNumber}) ---`);
+
+        } else {
+            // Phase 3: All Enemies, Introduce Toughness
+            this.allowedEnemyTypes = [Ghost, Shadow, Plant];
+            // Start at 3, increase steadily
+            this.enemiesPerWave = 3 + Math.floor((this.waveNumber - phase2EndWave) / 2); // 3, 3, 4, 4, 5...
+            this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves, 9000 - (this.waveNumber - phase2EndWave) * 300); // Decrease towards min (9s -> 3s)
+            this.timeBetweenEnemiesInWave = 1000; // Standard spawn speed
+            console.log(`--- Phase 3 (Wave ${this.waveNumber}) ---`);
+        }
+
+        console.log(`Starting Wave ${this.waveNumber}: Spawning ${this.enemiesPerWave} enemies (${this.allowedEnemyTypes.map(e => e.name).join(', ')}). Next wave in ${this.timeBetweenWaves / 1000}s.`);
+
+        // Start spawning enemies for the current wave
         this.scheduleNextEnemySpawn(0); // Start spawning the first enemy immediately
     }
 
@@ -746,11 +777,32 @@ export default class GameScene extends Phaser.Scene {
     // --- Individual Enemy Spawning ---
 
     chooseEnemyType() {
-        // Basic random selection for now, could be weighted later
-        const rand = Phaser.Math.Between(1, 10);
-        if (rand <= 4) return Ghost; // 40% chance Ghost
-        if (rand <= 7) return Shadow; // 30% chance Shadow
-        return Plant; // 30% chance Plant
+        // Choose randomly ONLY from the types allowed in the current wave phase
+        if (!this.allowedEnemyTypes || this.allowedEnemyTypes.length === 0) {
+            console.warn("No allowed enemy types defined for this wave! Defaulting to Ghost.");
+            return Ghost; // Fallback
+        }
+
+        // --- Weighted Selection within Allowed Types (Example) ---
+        let chosenType;
+        if (this.allowedEnemyTypes.length === 1) {
+            chosenType = this.allowedEnemyTypes[0]; // Only one choice
+        } else if (this.allowedEnemyTypes.includes(Plant)) {
+            // Phase 3: Ghost (30%), Shadow (40%), Plant (30%)
+            const rand = Phaser.Math.Between(1, 10);
+            if (rand <= 3) chosenType = Ghost;
+            else if (rand <= 7) chosenType = Shadow;
+            else chosenType = Plant;
+        } else {
+            // Phase 2: Ghost (50%), Shadow (50%)
+            chosenType = Phaser.Math.RND.pick(this.allowedEnemyTypes); // Simple random pick for phase 2
+            // Or weighted:
+            // const rand = Phaser.Math.Between(1, 10);
+            // chosenType = (rand <= 5) ? Ghost : Shadow;
+        }
+
+        // console.log("Chosen enemy type:", chosenType.name); // Optional debug log
+        return chosenType;
     }
 
     spawnEnemy(EnemyClass) {
