@@ -66,12 +66,7 @@ export default class GameScene extends Phaser.Scene {
 
         // --- NEW: Spell System ---
         this.spells = {
-            fireball: {
-                level: 0, // 0 = not learned
-                cooldown: 3000, // ms
-                lastCast: 0,
-                damage: 1 // Base damage
-            },
+            // Fireball REMOVED
             ice: {
                 level: 0,
                 cooldown: 8000,
@@ -80,13 +75,13 @@ export default class GameScene extends Phaser.Scene {
             }
         };
         this.spellKey = null; // To store the keyboard key for spells
-        this.fireballCooldownIcon = null; // NEW: UI for fireball cooldown
+        // this.fireballCooldownIcon = null; // REMOVED
         this.iceCooldownIcon = null;      // NEW: UI for ice cooldown
         this.pauseKey = null; // Key for manual pause
 
         // --- NEW: Physics Groups ---
         this.expDroplets = null; // Group for EXP droplets
-        this.fireballs = null; // Group for fireball projectiles
+        // this.fireballs = null; // REMOVED
         this.allowedEnemyTypes = []; // NEW: Tracks enemies allowed in the current wave
     }
 
@@ -112,9 +107,7 @@ export default class GameScene extends Phaser.Scene {
         this.waveNumber = 0;
         this.sessionStats = [];
         // Reset spell levels and cooldowns if restarting
-        this.spells.fireball.level = 0;
-        this.spells.fireball.lastCast = 0;
-        this.spells.fireball.damage = 1; // Reset damage too
+        // Fireball REMOVED
         this.spells.ice.level = 0;
         this.spells.ice.lastCast = 0;
         this.spells.ice.duration = 3000; // Reset duration to new base
@@ -177,12 +170,7 @@ export default class GameScene extends Phaser.Scene {
             classType: ExpDroplet,
             runChildUpdate: true // Let droplets manage their own updates
         });
-        this.fireballs = this.physics.add.group({
-            classType: Phaser.Physics.Arcade.Sprite, // Basic sprites for now
-            runChildUpdate: true,
-            allowGravity: false,
-            maxSize: 10 // Limit number of active fireballs (optional pooling)
-        });
+        // Fireball group REMOVED
 
 
         // --- UI Elements ---
@@ -272,7 +260,7 @@ export default class GameScene extends Phaser.Scene {
 
         // --- NEW: Collisions / Overlaps ---
         this.physics.add.overlap(this.wizard, this.expDroplets, this.collectExpDroplet, null, this);
-        this.physics.add.overlap(this.fireballs, this.enemies, this.hitEnemyWithFireball, this.checkFireballHitEnemy, this); // Added processCallback
+        // Fireball overlap REMOVED
 
         // --- Level Up Screen (create hidden) ---
         this.createLevelUpScreen();
@@ -336,28 +324,13 @@ export default class GameScene extends Phaser.Scene {
 
         // --- NEW: Spell Casting Input ---
         if (Phaser.Input.Keyboard.JustDown(this.spellKey)) {
-            // Try casting Fireball first if learned and ready
-            if (this.spells.fireball.level > 0 && time > this.spells.fireball.lastCast + this.spells.fireball.cooldown) {
-                this.castFireball(time);
-            }
-            // Else try casting Ice if learned and ready
-            else if (this.spells.ice.level > 0 && time > this.spells.ice.lastCast + this.spells.ice.cooldown) {
+            // Only check for Ice spell now
+            if (this.spells.ice.level > 0 && time > this.spells.ice.lastCast + this.spells.ice.cooldown) {
                 this.castIceSpell(time);
             }
-            // Add else if for other potential spells later
         }
 
-        // --- NEW: Update Fireballs (e.g., remove if off-screen) ---
-        // Handled by fireball's own update or preUpdate if it had one.
-        // Alternatively, check here:
-        this.fireballs.getChildren().forEach(fireball => {
-            if (fireball.active && fireball.x > this.cameras.main.width + 50) { // If it goes way off right
-                console.log("Fireball off-screen, disabling.");
-                fireball.setActive(false).setVisible(false); // Pool it
-                fireball.body?.stop();
-                // fireball.destroy(); // Use if not pooling
-            }
-        });
+        // Fireball update logic REMOVED
 
         // --- NEW: Update Spell Cooldown UI ---
         this.updateSpellCooldownUI(time);
@@ -1166,17 +1139,10 @@ export default class GameScene extends Phaser.Scene {
         };
         const buttonHoverStyle = { fill: '#add8e6' }; // Light blue on hover
 
-        // Fireball Button
-        const fireballButton = this.add.text(0, -50, '', buttonStyle)
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true });
+        // Fireball Button REMOVED
 
-        fireballButton.on('pointerdown', () => this.selectUpgrade('fireball'));
-        fireballButton.on('pointerover', () => fireballButton.setStyle(buttonHoverStyle));
-        fireballButton.on('pointerout', () => fireballButton.setStyle({ fill: '#fff' })); // Reset color
-
-        // Ice Spell Button
-        const iceButton = this.add.text(0, 30, '', buttonStyle)
+        // Ice Spell Button - Position adjusted to center vertically
+        const iceButton = this.add.text(0, 0, '', buttonStyle) // Centered Y
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
 
@@ -1185,27 +1151,27 @@ export default class GameScene extends Phaser.Scene {
         iceButton.on('pointerout', () => iceButton.setStyle({ fill: '#fff' })); // Reset color
 
         // Add elements to the container
-        this.levelUpContainer.add([bg, title, fireballButton, iceButton]);
+        this.levelUpContainer.add([bg, title, iceButton]); // Only add ice button
 
         // Store references to buttons for easy text updates
-        this.levelUpContainer.setData('fireballButton', fireballButton);
+        // this.levelUpContainer.setData('fireballButton', fireballButton); // REMOVED
         this.levelUpContainer.setData('iceButton', iceButton);
     }
 
     showLevelUpScreen() {
         if (!this.levelUpContainer) return;
 
-        const fireballButton = this.levelUpContainer.getData('fireballButton');
+        // const fireballButton = this.levelUpContainer.getData('fireballButton'); // REMOVED
         const iceButton = this.levelUpContainer.getData('iceButton');
 
         // Update button text based on current spell levels
-        const fbLevel = this.spells.fireball.level;
+        // const fbLevel = this.spells.fireball.level; // REMOVED
         const iceLevel = this.spells.ice.level;
 
-        const fbDesc = ` (CD: ${this.spells.fireball.cooldown/1000}s, Dmg: ${this.spells.fireball.damage})`;
+        // const fbDesc = ` (CD: ${this.spells.fireball.cooldown/1000}s, Dmg: ${this.spells.fireball.damage})`; // REMOVED
         const iceDesc = ` (CD: ${this.spells.ice.cooldown/1000}s, Dur: ${this.spells.ice.duration/1000}s)`;
 
-        fireballButton.setText(fbLevel === 0 ? 'Learn Fireball' : `Upgrade Fireball (Lvl ${fbLevel + 1})` + fbDesc);
+        // fireballButton.setText(fbLevel === 0 ? 'Learn Fireball' : `Upgrade Fireball (Lvl ${fbLevel + 1})` + fbDesc); // REMOVED
         iceButton.setText(iceLevel === 0 ? 'Learn Ice Spell' : `Upgrade Ice Spell (Lvl ${iceLevel + 1})` + iceDesc);
 
         this.levelUpContainer.setVisible(true);
@@ -1242,12 +1208,7 @@ export default class GameScene extends Phaser.Scene {
         const level = spell.level; // Current level *after* incrementing
 
         // Apply upgrades based on the new level
-        if (spellKey === 'fireball') {
-            // Example: Reduce cooldown, increase damage
-            spell.cooldown = Math.max(500, 3500 - (level * 500)); // Faster cooldown per level (min 0.5s)
-            spell.damage = 1 + Math.floor(level / 2); // Increase damage every 2 levels
-            console.log(`Fireball upgraded: Cooldown ${spell.cooldown}ms, Damage ${spell.damage}`);
-        } else if (spellKey === 'ice') {
+        if (spellKey === 'ice') {
             // Example: Reduce cooldown, increase duration
             spell.cooldown = Math.max(2000, 9000 - (level * 1000)); // Faster cooldown per level (min 2s)
             spell.duration = 3000 + (level * 750); // Longer freeze per level - INCREASED DURATION PER LEVEL
@@ -1263,86 +1224,7 @@ export default class GameScene extends Phaser.Scene {
     // --- NEW: Spell Casting Methods ---
     // =============================================
 
-    castFireball(time) {
-        console.log("Casting Fireball!");
-        this.spells.fireball.lastCast = time; // Record cast time for cooldown
-        this.sound.play('castSound', { volume: 0.7 }); // Reuse cast sound
-
-        // --- NEW: Update Cooldown UI immediately ---
-        this.updateSpellCooldownUI(time);
-
-        // Play wizard cast animation (if not already playing)
-        this.wizard.play('wizard_cast', true); // Force restart
-
-        // Create fireball sprite from the wizard's wand position
-        const wandX = this.wizard.x + 25; // Adjust offset based on wizard sprite
-        const wandY = this.wizard.y - 65; // Adjust offset
-        const fireballSpeed = 450; // Pixels per second
-
-        // Get a fireball from the pool
-        const fireball = this.fireballs.get(wandX, wandY, 'fireball');
-        if (fireball) {
-            fireball.setActive(true).setVisible(true);
-            fireball.setPosition(wandX, wandY); // Ensure position
-            fireball.setScale(1.2); // Make it slightly larger?
-            fireball.setTint(0xffddaa); // Orangey tint
-            fireball.setData('damage', this.spells.fireball.damage); // Store current damage
-            fireball.setDepth(this.wizard.depth - 1); // Appear behind wizard initially? Or above?
-
-            // Enable physics body if reusing from pool
-            fireball.body?.setEnable(true);
-            fireball.body?.reset(wandX, wandY);
-            fireball.body?.setSize(fireball.width * 0.6, fireball.height * 0.6); // Adjust collision shape if needed
-
-            // Simple targeting: Aim straight right
-            fireball.setVelocityX(fireballSpeed);
-            fireball.setVelocityY(0);
-
-            // Optional: Add particle trail?
-        } else {
-            console.warn("Fireball pool empty or failed to create.");
-        }
-    }
-
-    // Process callback for fireball/enemy overlap
-    checkFireballHitEnemy(fireball, enemy) {
-        // Only allow active fireballs to hit active, non-frozen enemies
-        return fireball.active && enemy.active && !enemy.isFrozen;
-    }
-
-    hitEnemyWithFireball(fireball, enemy) {
-        // Double check active state here just in case processCallback fails somehow
-        if (!fireball.active || !enemy.active) {
-            return;
-        }
-
-        console.log(`Fireball hit ${enemy.constructor.name}`);
-        const damage = fireball.getData('damage') || 1;
-
-        // Play hit sound
-        this.sound.play('enemyHitSound', { volume: 0.6 }); // Reuse explosion sound
-
-        // Apply damage to the enemy
-        const defeated = enemy.takeDamage(damage); // Enemy handles its own death/effects
-
-        // Optional: Create a small explosion effect at the impact point using graphics
-        const explosion = this.add.graphics({ x: fireball.x, y: fireball.y });
-        explosion.fillStyle(0xffaa00, 0.8);
-        explosion.fillCircle(0, 0, 10);
-        this.tweens.add({
-            targets: explosion,
-            scale: 3,
-            alpha: 0,
-            duration: 150,
-            onComplete: () => explosion.destroy()
-        });
-
-
-        // Disable the fireball (pool it)
-        fireball.setActive(false).setVisible(false);
-        fireball.body?.stop();
-        fireball.body?.setEnable(false);
-    }
+    // castFireball, checkFireballHitEnemy, hitEnemyWithFireball REMOVED
 
     castIceSpell(time) {
         console.log("Casting Ice Spell!");
@@ -1386,21 +1268,13 @@ export default class GameScene extends Phaser.Scene {
         const startY = 60; // Below EXP bar
         const iconX = padding + iconSize / 2;
 
-        // --- Fireball Icon ---
-        this.fireballCooldownIcon = this.add.container(iconX, startY).setDepth(5).setVisible(false);
-        const fbBg = this.add.graphics().fillStyle(0x8B0000, 0.7).fillCircle(0, 0, iconSize / 2); // Dark red background
-        const fbIcon = this.add.sprite(0, 0, 'fireball').setScale(iconSize / this.textures.get('fireball').getSourceImage().width * 0.8); // Scale fireball sprite to fit
-        const fbMaskShape = this.make.graphics(); // Mask to show cooldown
-        this.fireballCooldownIcon.add([fbBg, fbIcon, fbMaskShape]);
-        this.fireballCooldownIcon.setData('mask', fbMaskShape);
-        fbIcon.mask = new Phaser.Display.Masks.GeometryMask(this, fbMaskShape);
-        fbIcon.mask.invertAlpha = true; // Reveal part covered by mask
+        // Fireball Icon REMOVED
 
         // --- Ice Icon ---
-        const iceY = startY + iconSize + padding;
-        this.iceCooldownIcon = this.add.container(iconX, iceY).setDepth(5).setVisible(false);
+        // Position adjusted to where Fireball icon was
+        this.iceCooldownIcon = this.add.container(iconX, startY).setDepth(5).setVisible(false);
         const iceBg = this.add.graphics().fillStyle(0x00008B, 0.7).fillCircle(0, 0, iconSize / 2); // Dark blue background
-        // Placeholder graphics for ice icon until we have an asset
+        // Placeholder graphics for ice icon
         const iceIconGraphics = this.add.graphics()
             .fillStyle(0xadd8e6) // Light blue
             .fillCircle(0, 0, iconSize * 0.35) // Smaller inner circle
@@ -1419,23 +1293,7 @@ export default class GameScene extends Phaser.Scene {
     updateSpellCooldownUI(time) {
         const iconSize = 50;
 
-        // --- Fireball ---
-        const fbSpell = this.spells.fireball;
-        if (fbSpell.level > 0) {
-            this.fireballCooldownIcon.setVisible(true);
-            const elapsed = time - fbSpell.lastCast;
-            const progress = Phaser.Math.Clamp(elapsed / fbSpell.cooldown, 0, 1); // 0 = full cooldown, 1 = ready
-            const mask = this.fireballCooldownIcon.getData('mask');
-            mask.clear();
-            if (progress < 1) {
-                mask.fillStyle(0xffffff);
-                // Draw a pie shape representing the remaining cooldown
-                mask.slice(0, 0, iconSize / 2, Phaser.Math.DegToRad(270), Phaser.Math.DegToRad(270 + (1 - progress) * 360), true);
-                mask.fillPath();
-            }
-        } else {
-            this.fireballCooldownIcon.setVisible(false);
-        }
+        // Fireball UI update REMOVED
 
         // --- Ice ---
         const iceSpell = this.spells.ice;
@@ -1493,7 +1351,7 @@ export default class GameScene extends Phaser.Scene {
         this.wizard.anims?.pause();
         this.enemies.getChildren().forEach(enemy => enemy.pause()); // Use existing pause method
         this.expDroplets.getChildren().forEach(d => d.body?.stop());
-        this.fireballs.getChildren().forEach(f => f.body?.stop());
+        // this.fireballs.getChildren().forEach(f => f.body?.stop()); // REMOVED
 
         // Optional: Lower music volume
         const music = this.sound.get('gameMusic');

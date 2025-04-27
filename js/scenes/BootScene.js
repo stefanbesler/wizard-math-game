@@ -39,7 +39,7 @@ export default class BootScene extends Phaser.Scene {
 
         // --- NEW: EXP and Spell Assets ---
         this.load.image('exp_droplet', 'assets/sprites/exp_droplet.png');
-        this.load.image('fireball', 'assets/sprites/fireball.png');
+        // this.load.image('fireball', 'assets/sprites/fireball.png'); // REMOVED
         // --- END NEW ---
 
         // Placeholder for Sounds (Uncomment and add paths when you have sound files)
