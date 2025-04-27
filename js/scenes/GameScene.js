@@ -82,7 +82,8 @@ export default class GameScene extends Phaser.Scene {
         // --- NEW: Physics Groups ---
         this.expDroplets = null; // Group for EXP droplets
         // this.fireballs = null; // REMOVED
-        this.allowedEnemyTypes = []; // NEW: Tracks enemies allowed in the current wave
+        this.allowedEnemyTypes = []; // Tracks enemies allowed in the current wave
+        this.currentTargetEnemy = null; // NEW: The enemy the current question is attached to
     }
 
     // Initialize scene with data passed from the previous scene
@@ -174,21 +175,23 @@ export default class GameScene extends Phaser.Scene {
 
 
         // --- UI Elements ---
-        // Question Text (Top Center)
-        this.questionText = this.add.text(this.cameras.main.width / 2, 50, '3 x ? = ?', {
-            fontSize: '40px', fill: '#ffffff', fontStyle: 'bold',
-            stroke: '#000000', strokeThickness: 5,
-            align: 'center'
-        }).setOrigin(0.5);
+        // Question Text (Will be positioned dynamically)
+        this.questionText = this.add.text(0, 0, '', { // Start at 0,0, empty text
+            fontSize: '28px', fill: '#ffffff', fontStyle: 'bold', // Slightly smaller font
+            stroke: '#000000', strokeThickness: 4,
+            align: 'center',
+            backgroundColor: 'rgba(0,0,0,0.5)', // Add background for readability
+            padding: { x: 8, y: 4 }
+        }).setOrigin(0.5, 1).setDepth(10).setVisible(false); // Origin bottom-center, high depth, initially hidden
 
-        // Input Text Display (Below Question)
-        this.inputText = this.add.text(this.cameras.main.width / 2, 115, '_', {
-            fontSize: '36px', fill: '#FFD700', // Gold color for input
+        // Input Text Display (Will be positioned dynamically)
+        this.inputText = this.add.text(0, 0, '_', { // Start at 0,0
+            fontSize: '24px', fill: '#FFD700', // Slightly smaller font
             fontStyle: 'bold',
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            padding: { x: 15, y: 8 },
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            padding: { x: 10, y: 5 },
             align: 'center'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5, 1).setDepth(10).setVisible(false); // Origin bottom-center, high depth, initially hidden
 
         // Score Text (Top Right)
         this.score = 0; // Reset score on create
@@ -334,6 +337,9 @@ export default class GameScene extends Phaser.Scene {
 
         // --- NEW: Update Spell Cooldown UI ---
         this.updateSpellCooldownUI(time);
+
+        // --- NEW: Update Floating Calculation UI ---
+        this.updateFloatingUI();
     }
 
     // --- Player Health and Damage ---
@@ -422,21 +428,50 @@ export default class GameScene extends Phaser.Scene {
     updateInputText() {
         // Show underscore as placeholder if input is empty, otherwise show the input
         this.inputText.setText(this.currentInput || '_');
+        // Ensure visibility matches question text
+        this.inputText.setVisible(this.questionText.visible);
     }
 
     generateQuestion() {
-        // Select the first number randomly from the player's chosen tables
+        // --- NEW: Target Selection ---
+        // Only generate a new question if there isn't already an active target
+        if (this.currentTargetEnemy && this.currentTargetEnemy.active) {
+            console.log("generateQuestion called but current target is still active.");
+            return;
+        }
+
+        // Find potential targets: active enemies reasonably far from the left edge
+        const potentialTargets = this.enemies.getChildren().filter(e =>
+            e.active && e.x > this.gameOverLineX + 100 // Ensure they are not too close to game over line
+        );
+
+        if (potentialTargets.length === 0) {
+            console.log("No suitable enemy target found for new question.");
+            this.currentTargetEnemy = null;
+            this.questionText.setVisible(false); // Hide UI if no target
+            this.inputText.setVisible(false);
+            return; // Wait until an enemy appears
+        }
+
+        // Select a random enemy from the potential targets
+        this.currentTargetEnemy = Phaser.Math.RND.pick(potentialTargets);
+        console.log(`New target selected: ${this.currentTargetEnemy.constructor.name} at x: ${this.currentTargetEnemy.x.toFixed(0)}`);
+
+        // --- Question Generation (existing logic) ---
         const num1 = Phaser.Math.RND.pick(this.selectedTables);
-        const num2 = Phaser.Math.Between(1, 10); // Random number between 1 and 10 (or adjust range if needed)
+        const num2 = Phaser.Math.Between(1, 10);
         this.currentQuestion.num1 = num1;
         this.currentQuestion.num2 = num2;
         this.currentQuestion.answer = num1 * num2;
 
-        // Display the question
-        this.questionText.setText(`${num1} × ${num2} = ?`); // Use multiplication symbol
+        // Display the question (text content only)
+        this.questionText.setText(`${num1} × ${num2} = ?`);
+        this.questionText.setVisible(true); // Make visible
+        this.inputText.setVisible(true); // Make visible
+        this.updateInputText(); // Update input text display
 
         // Log for debugging
-        console.log(`New question: ${num1} x ${num2} = ${this.currentQuestion.answer} (Using tables: ${this.selectedTables.join(', ')})`);
+        console.log(`New question for target: ${num1} x ${num2} = ${this.currentQuestion.answer}`);
 
         // Record start time for this question
         this.questionStartTime = Date.now();
@@ -484,13 +519,10 @@ export default class GameScene extends Phaser.Scene {
         this.score += 10;
         this.scoreText.setText('Score: ' + this.score);
 
-        // --- Find and Attack Closest Enemy ---
-        // Get active enemies only
-        const activeEnemies = this.enemies.getChildren().filter(e => e.active);
-        let closestEnemy = this.physics.closest(this.wizard, activeEnemies);
-
-        if (closestEnemy) {
-            console.log(`Targeting ${closestEnemy.constructor.name} at x: ${closestEnemy.x.toFixed(0)}`);
+        // --- Attack the CURRENT TARGET Enemy ---
+        if (this.currentTargetEnemy && this.currentTargetEnemy.active) {
+            const targetEnemy = this.currentTargetEnemy; // Use the stored target
+            console.log(`Attacking target ${targetEnemy.constructor.name} at x: ${targetEnemy.x.toFixed(0)}`);
 
             // Play cast sound
             this.sound.play('castSound');
@@ -499,59 +531,57 @@ export default class GameScene extends Phaser.Scene {
             // --- Create Lightning Effect ---
             // Estimate wand position (adjust offsets as needed)
             const wandX = this.wizard.x + 20; // Slightly right of wizard center
-            const wandY = this.wizard.y - 60; // Above wizard center (adjust based on sprite)
+            const wandY = this.wizard.y - 60; // Above wizard center
 
-            // Calculate target position based on enemy's visual center
-            const bounds = closestEnemy.getBounds();
+            // Calculate target position based on the target enemy's visual center
+            const bounds = targetEnemy.getBounds();
             const targetX = bounds.centerX;
-            // Add slight vertical jitter to the target point
-            const targetY = bounds.centerY + Phaser.Math.Between(-10, 10);
+            const targetY = bounds.centerY + Phaser.Math.Between(-10, 10); // Add jitter
 
             this.createLightning(wandX, wandY, targetX, targetY);
 
 
-            // --- Damage the Enemy ---
-            // Call the enemy's takeDamage method
-            const defeated = closestEnemy.takeDamage(1); // Deal 1 damage per correct answer
+            // --- Damage the Target Enemy ---
+            const defeated = targetEnemy.takeDamage(1); // Deal 1 damage
 
             if (defeated) {
-                // Enemy was defeated by this hit
-                console.log(`${closestEnemy.constructor.name} defeated by attack.`);
+                // Target Enemy was defeated by this hit
+                console.log(`Target ${targetEnemy.constructor.name} defeated by attack.`);
                 this.sound.play('enemyHitSound', { delay: 0.15 }); // Play death sound
 
                 // --- Use Built-in Effects for Death ---
-                // 1. Camera Flash (optional, maybe only for harder enemies?)
                 // this.cameras.main.flash(150, 255, 255, 255);
 
                 // 2. Enemy Death Tween (Scale up/Fade out - handled in Enemy.die() or here)
                 // The takeDamage method already handles tinting.
                 // The die method currently just destroys. We could add tweens there
-                // or keep the tween logic here if preferred. Let's assume die() handles it for now.
+                // or keep the tween logic here if preferred. Let's assume die() handles it.
 
-                // Increase score only when an enemy is actually defeated
-                this.score += 10; // Or maybe score based on enemy type?
+                // Increase score
+                this.score += 10; // Score for defeating the target
                 this.scoreText.setText('Score: ' + this.score);
 
+                // --- NEW: Clear target and generate next question ---
+                this.currentTargetEnemy = null; // Clear the defeated target
+                this.questionText.setVisible(false); // Hide UI temporarily
+                this.inputText.setVisible(false);
+                // Schedule the next question generation after a short delay
+                this.time.delayedCall(750, this.generateQuestion, [], this); // Delay allows death effects to play
+
             } else {
-                // Enemy was hit but survived (e.g., Plant)
-                console.log(`${closestEnemy.constructor.name} survived the hit.`);
+                // Target Enemy was hit but survived (e.g., Plant)
+                console.log(`Target ${targetEnemy.constructor.name} survived the hit.`);
+                // Keep the same target and question, DO NOT generate a new one yet.
                 // Play a different, less impactful hit sound?
                 // this.sound.play('hitSound', { volume: 0.5 });
             }
 
-            // Note: Enemy destruction is handled by its own takeDamage/die methods
-
         } else {
-            console.log('Correct answer, but no active enemies to target.');
-            // Still play cast animation even if no target? Your choice.
-            // If not, move the wizard.play('wizard_cast') inside the if(closestEnemy) block.
+            console.log('Correct answer, but the target enemy is no longer active.');
+            // Clear the invalid target and try to generate a new question immediately
+            this.currentTargetEnemy = null;
+            this.generateQuestion();
         }
-
-            // Note: Enemy destruction is handled within its takeDamage/die methods now.
-            // The score increase was moved inside the 'defeated' block.
-
-        // Generate the next question immediately
-        this.generateQuestion();
     }
 
     handleWrongAnswer() {
@@ -829,10 +859,10 @@ export default class GameScene extends Phaser.Scene {
         });
         this.wizard.anims.stop();
 
-        // Stop player input
-        this.input.keyboard.off('keydown', this.handleKeyInput, this);
-        // Remove pause key listener too
         if (this.pauseKey) this.pauseKey.enabled = false;
+        // Hide floating UI
+        this.questionText.setVisible(false);
+        this.inputText.setVisible(false);
 
 
         // Visual feedback
@@ -1388,5 +1418,48 @@ export default class GameScene extends Phaser.Scene {
             music.setVolume(0.4); // Restore original volume
         }
     }
+
+
+    // =============================================
+    // --- NEW: Floating UI Update Method ---
+    // =============================================
+    updateFloatingUI() {
+        if (this.currentTargetEnemy && this.currentTargetEnemy.active) {
+            // Calculate position above the enemy's physics body top
+            const targetX = this.currentTargetEnemy.x;
+            const targetY = this.currentTargetEnemy.body.top; // Use physics body top
+
+            // Position question text above the enemy
+            this.questionText.setPosition(targetX, targetY - 35); // Adjust Y offset as needed
+            // Position input text below question text
+            this.inputText.setPosition(targetX, targetY - 5);   // Adjust Y offset as needed
+
+            // Ensure they are visible if there's an active target
+            if (!this.questionText.visible) this.questionText.setVisible(true);
+            if (!this.inputText.visible) this.inputText.setVisible(true);
+
+        } else if (this.currentTargetEnemy && !this.currentTargetEnemy.active) {
+            // Target became inactive (destroyed by something else?)
+            console.log("Current target became inactive, finding new target.");
+            this.currentTargetEnemy = null;
+            this.questionText.setVisible(false);
+            this.inputText.setVisible(false);
+            this.generateQuestion(); // Immediately try to find a new target
+
+        } else {
+            // No current target
+            if (this.questionText.visible) this.questionText.setVisible(false);
+            if (this.inputText.visible) this.inputText.setVisible(false);
+
+            // If no target, try to generate one if enemies are present
+            if (this.enemies.countActive(true) > 0) {
+                 // Add a small delay before trying to generate again to avoid spamming
+                 if (!this.findTargetTimer || !this.findTargetTimer.getProgress() < 1) {
+                      this.findTargetTimer = this.time.delayedCall(500, this.generateQuestion, [], this);
+                 }
+            }
+        }
+    }
+
 
 } // End Class
