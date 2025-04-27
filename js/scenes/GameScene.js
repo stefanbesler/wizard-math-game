@@ -1188,7 +1188,8 @@ export default class GameScene extends Phaser.Scene {
 
     selectUpgrade(spellKey) {
         // Ensure screen is visible and game is paused before selecting
-        if (!this.spells[spellKey] || !this.isPausedForLevelUp || !this.levelUpContainer.visible) return;
+        // Also ensure only 'ice' spell can be selected now
+        if (spellKey !== 'ice' || !this.spells[spellKey] || !this.isPausedForLevelUp || !this.levelUpContainer.visible) return;
 
         this.spells[spellKey].level++; // Increment level
         console.log(`Selected upgrade: ${spellKey}, now level ${this.spells[spellKey].level}`);
