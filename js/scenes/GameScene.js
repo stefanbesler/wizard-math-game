@@ -1376,13 +1376,11 @@ export default class GameScene extends Phaser.Scene {
         // Resume animations/movement
         this.wizard.anims?.resume();
         this.enemies.getChildren().forEach(enemy => enemy.resume()); // Use existing resume method
-        // Restart movement for droplets/fireballs
+        // Restart movement for droplets
         this.expDroplets.getChildren().forEach(droplet => {
              if (droplet.active) this.physics.moveToObject(droplet, this.wizard, droplet.moveSpeed);
          });
-         this.fireballs.getChildren().forEach(fireball => {
-             if (fireball.active) fireball.body.velocity.x = 450; // Reapply velocity
-         });
+         // Fireball resume logic REMOVED
 
         // Optional: Restore music volume
         const music = this.sound.get('gameMusic');
