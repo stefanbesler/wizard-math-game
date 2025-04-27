@@ -1093,7 +1093,7 @@ export default class GameScene extends Phaser.Scene {
 
         // Pause projectiles/droplets movement
         this.expDroplets.getChildren().forEach(d => d.body?.stop());
-        this.fireballs.getChildren().forEach(f => f.body?.stop());
+        // this.fireballs.getChildren().forEach(f => f.body?.stop()); // REMOVED
 
         // Pause player animations
         this.wizard.anims.pause();
