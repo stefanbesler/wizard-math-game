@@ -54,6 +54,7 @@ export default class GameScene extends Phaser.Scene {
         this.gameOverLineX = 150; // X-coordinate where enemies trigger player damage
         this.isGameOver = false;
         this.selectedTables = [3]; // Default value, will be overwritten by init
+        this.difficulty = 1;
 
         // Statistics Collection
         this.sessionStats = []; // Array to store stats
@@ -96,8 +97,9 @@ export default class GameScene extends Phaser.Scene {
             console.warn('No valid selectedTables received, defaulting to [3]');
             this.selectedTables = [3]; // Fallback if no data is passed
         }
+        this.difficulty = data.difficulty;
         console.log('GameScene will use tables:', this.selectedTables);
-
+        
         // --- Reset state on init ---
         this.playerLevel = 1;
         this.currentExp = 0;
@@ -257,7 +259,7 @@ export default class GameScene extends Phaser.Scene {
 
         // --- Start Enemy Wave Spawning ---
         // Start the first wave after an initial delay
-        const initialSpawnDelay = 3000; // Time before the very first wave starts
+        const initialSpawnDelay = this.difficulty > 1 ? 0 : 3000; // Time before the very first wave starts
         this.nextWaveTimer = this.time.delayedCall(initialSpawnDelay, this.startNextWave, [], this);
         console.log(`First wave scheduled in ${initialSpawnDelay / 1000}s`);
 
@@ -467,27 +469,26 @@ export default class GameScene extends Phaser.Scene {
         const operatorKeys = Object.keys(Operator);
         const randomOperatorKey = operatorKeys[Phaser.Math.Between(0, operatorKeys.length - 1)];
         const operatorSymbol = Operator[randomOperatorKey];        
+        let num1 = Phaser.Math.Between(1,100);
+        let num2 = Phaser.Math.Between(0,99-num1);
         
         switch (operatorSymbol) {
             case Operator.MULTIPLY:
-                const num1 = Phaser.Math.RND.pick(this.selectedTables);
-                const num2 = Phaser.Math.Between(1, 10);
+                num1 = Phaser.Math.RND.pick(this.selectedTables);
+                num2 = Phaser.Math.Between(1,10);
                 this.currentQuestion.num1 = num1;
                 this.currentQuestion.num2 = num2;
                 this.currentQuestion.operator = operatorSymbol;                 
                 this.currentQuestion.answer = this.currentQuestion.num1 * this.currentQuestion.num2;
                 break;
             case Operator.ADD:
-                const num1 = Phaser.Math.RND.pick(this.selectedTables);
-                const num2 = Phaser.Math.Between(1, 10);
                 this.currentQuestion.num1 = num1;
                 this.currentQuestion.num2 = num2;
                 this.currentQuestion.operator = operatorSymbol;                 
                 this.currentQuestion.answer = this.currentQuestion.num1 + this.currentQuestion.num2;
                 break;
             case Operator.SUBTRACT:
-                const num1 = Phaser.Math.RND.pick(this.selectedTables);
-                const num2 = Phaser.Math.Between(1, 10);
+                console.log(num1 > num2);
                 this.currentQuestion.num1 = num1 > num2 ? num1 : num2;
                 this.currentQuestion.num2 = num1 > num2 ? num2 : num1;
                 this.currentQuestion.operator = operatorSymbol;                 
@@ -496,7 +497,7 @@ export default class GameScene extends Phaser.Scene {
         }        
 
         // Display question
-        this.questionText.setText(`${num1} ${operatorSymbol} ${num2} = ?`);
+        this.questionText.setText(`${this.currentQuestion.num1} ${operatorSymbol} ${this.currentQuestion.num2} = ?`);
         this.questionText.setVisible(true);
         this.inputText.setVisible(true);
         this.updateInputText();
@@ -744,27 +745,27 @@ export default class GameScene extends Phaser.Scene {
         if (this.waveNumber <= phase1EndWave) {
             // Phase 1: Ghosts Only, Very Easy
             this.allowedEnemyTypes = [Ghost];
-            this.enemiesPerWave = 1 + Math.floor(this.waveNumber / 2); // 1, 1, 2, 2
-            this.timeBetweenWaves = Phaser.Math.Between(13000, 15000); // Long breaks (13-15s)
-            this.timeBetweenEnemiesInWave = 1500; // Slower spawns within wave
+            this.enemiesPerWave = 1 + Math.floor(this.waveNumber / 2) * this.difficulty; // 1, 1, 2, 2
+            this.timeBetweenWaves = Phaser.Math.Between(13000, 15000) / this.difficulty; // Long breaks (13-15s)
+            this.timeBetweenEnemiesInWave = 1500 / this.difficulty; // Slower spawns within wave
             console.log(`--- Phase 1 (Wave ${this.waveNumber}) ---`);
 
         } else if (this.waveNumber <= phase2EndWave) {
             // Phase 2: Ghosts & Shadows, Introduce Speed
             this.allowedEnemyTypes = [Ghost, Shadow];
             // Start at 2, increase slowly
-            this.enemiesPerWave = 2 + Math.floor((this.waveNumber - phase1EndWave) / 2); // 2, 2, 3, 3, 4
-            this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves + 2000, 12000 - (this.waveNumber - phase1EndWave) * 400); // Decrease faster (12s -> ~10s)
-            this.timeBetweenEnemiesInWave = 1200; // Slightly faster spawns
+            this.enemiesPerWave = 2 + Math.floor((this.waveNumber - phase1EndWave) / 2) * this.difficulty; // 2, 2, 3, 3, 4
+            this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves + 2000, 12000 - (this.waveNumber - phase1EndWave) * 400) / this.difficulty; // Decrease faster (12s -> ~10s)
+            this.timeBetweenEnemiesInWave = 1200 / this.difficulty; // Slightly faster spawns
             console.log(`--- Phase 2 (Wave ${this.waveNumber}) ---`);
 
         } else {
             // Phase 3: All Enemies, Introduce Toughness
             this.allowedEnemyTypes = [Ghost, Shadow, Plant];
             // Start at 3, increase steadily
-            this.enemiesPerWave = 3 + Math.floor((this.waveNumber - phase2EndWave) / 2); // 3, 3, 4, 4, 5...
-            this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves, 9000 - (this.waveNumber - phase2EndWave) * 300); // Decrease towards min (9s -> 3s)
-            this.timeBetweenEnemiesInWave = 1000; // Standard spawn speed
+            this.enemiesPerWave = 3 + Math.floor((this.waveNumber - phase2EndWave) / 2) * this.difficulty; // 3, 3, 4, 4, 5...
+            this.timeBetweenWaves = Math.max(this.minTimeBetweenWaves, 9000 - (this.waveNumber - phase2EndWave) * 300) / this.difficulty; // Decrease towards min (9s -> 3s)
+            this.timeBetweenEnemiesInWave = 1000 / this.difficulty; // Standard spawn speed
             console.log(`--- Phase 3 (Wave ${this.waveNumber}) ---`);
         }
 
@@ -852,7 +853,7 @@ export default class GameScene extends Phaser.Scene {
         const startX = this.cameras.main.width + Phaser.Math.Between(50, 100); // Start varied off-screen right
 
         // Create an instance of the specific enemy class
-        const enemy = new EnemyClass(this, startX, yPos);
+        const enemy = new EnemyClass(this, startX, yPos, this.difficulty);
 
         // Add the enemy to the physics group
         this.enemies.add(enemy);
@@ -948,7 +949,7 @@ export default class GameScene extends Phaser.Scene {
                 if (progress === 1) {
                     // Pass the original selected tables back when restarting
                     // Reset necessary game state variables before restarting
-                    this.scene.restart({ selectedTables: this.selectedTables });
+                    this.scene.restart({ difficulty: this.difficulty, selectedTables: this.selectedTables });
                 }
             });
         });

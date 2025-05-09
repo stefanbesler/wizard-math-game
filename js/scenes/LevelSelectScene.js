@@ -2,6 +2,7 @@ export default class LevelSelectScene extends Phaser.Scene {
     constructor() {
         super('LevelSelectScene');
         this.selectedTables = new Set([3]); // Default to 3 times table selected
+        this.difficulty = 1;
         this.tableButtons = {}; // To store references to button text objects
     }
 
@@ -52,6 +53,35 @@ export default class LevelSelectScene extends Phaser.Scene {
         const spacingX = buttonWidth + 20;
         const spacingY = buttonHeight + 20;
 
+            
+        // Hard difficulty        
+        const hardDifficultyText = this.add.text(this.cameras.main.width / 2, 400, `Hard`, buttonStyle)
+            .setOrigin(0.5)
+            .setInteractive();            
+
+        // Set initial appearance based on default selection
+        if (this.difficulty == 2) {
+            hardDifficultyText.setStyle(selectedStyle);
+        }
+        
+        hardDifficultyText.on('pointerdown', () => {
+            
+            if (this.difficulty == 1) {
+                this.difficulty = 2;
+                hardDifficultyText.setStyle(selectedStyle);    
+            } else {
+                this.difficulty = 1;
+                hardDifficultyText.setStyle(buttonStyle);      
+            }
+
+        });        
+
+        // Hover effect
+        hardDifficultyText.on('pointerover', () => {
+            hardDifficultyText.setStyle({ ...hardDifficultyText.style.toJSON(), ...hoverStyle }); // Keep background, change text fill
+        });      
+
+        // Tables
         for (let i = 1; i <= 10; i++) {
             const col = (i - 1) % columns;
             const row = Math.floor((i - 1) / columns);
@@ -123,7 +153,7 @@ export default class LevelSelectScene extends Phaser.Scene {
                     if (progress === 1) {
                         this.sound.stopAll(); // Stop menu music
                         // Pass the selected tables as an array to the GameScene
-                        this.scene.start('GameScene', { selectedTables: Array.from(this.selectedTables) });
+                        this.scene.start('GameScene', { difficulty: this.difficulty, selectedTables: Array.from(this.selectedTables) });
                     }
                 });
             } else {
