@@ -1,10 +1,10 @@
 import Enemy from './Enemy.js';
 
 export default class Ghost extends Enemy {
-    constructor(scene, x, y) {
+    constructor(scene, x, y, difficulty) {
         const config = {
             hitPoints: 1,
-            moveSpeed: 40, // Slower speed
+            moveSpeed: 40 * difficulty, // Slower speed
             isLoner: false, // Can spawn in groups
             animationKey: 'ghost_idle',
             scale: 2.0
