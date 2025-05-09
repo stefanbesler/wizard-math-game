@@ -3,3 +3,5 @@
 .DS_Store
 assets/.DS_Store js/.DS_Store
 .env
+gh-pages
+gh-pages.pub

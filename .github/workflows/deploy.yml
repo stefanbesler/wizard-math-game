@@ -9,8 +9,10 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+      - uses: actions/checkout@v4
+          
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
-          publish_dir: .
+          publish_dir: ./dist

@@ -38,7 +38,7 @@ export default class GameScene extends Phaser.Scene {
 
         // Gameplay Variables
         this.currentInput = '';
-        this.currentQuestion = { num1: 0, num2: 0, answer: 0 };
+        this.currentQuestion = { num1: 0, num2: 0, answer: 0, operator: '' };
         this.score = 0;
         // Wave spawning variables
         this.waveNumber = 0;
@@ -458,20 +458,51 @@ export default class GameScene extends Phaser.Scene {
         console.log(`New target selected: ${this.currentTargetEnemy.constructor.name} at x: ${this.currentTargetEnemy.x.toFixed(0)}`);
 
         // --- Question Generation (existing logic) ---
-        const num1 = Phaser.Math.RND.pick(this.selectedTables);
-        const num2 = Phaser.Math.Between(1, 10);
-        this.currentQuestion.num1 = num1;
-        this.currentQuestion.num2 = num2;
-        this.currentQuestion.answer = num1 * num2;
+        const Operator = {
+            MULTIPLY: '×',
+            ADD: '+',
+            SUBTRACT: '−',
+        };
 
-        // Display the question (text content only)
-        this.questionText.setText(`${num1} × ${num2} = ?`);
-        this.questionText.setVisible(true); // Make visible
-        this.inputText.setVisible(true); // Make visible
-        this.updateInputText(); // Update input text display
+        const operatorKeys = Object.keys(Operator);
+        const randomOperatorKey = operatorKeys[Phaser.Math.Between(0, operatorKeys.length - 1)];
+        const operatorSymbol = Operator[randomOperatorKey];        
+        
+        switch (operatorSymbol) {
+            case Operator.MULTIPLY:
+                const num1 = Phaser.Math.RND.pick(this.selectedTables);
+                const num2 = Phaser.Math.Between(1, 10);
+                this.currentQuestion.num1 = num1;
+                this.currentQuestion.num2 = num2;
+                this.currentQuestion.operator = operatorSymbol;                 
+                this.currentQuestion.answer = this.currentQuestion.num1 * this.currentQuestion.num2;
+                break;
+            case Operator.ADD:
+                const num1 = Phaser.Math.RND.pick(this.selectedTables);
+                const num2 = Phaser.Math.Between(1, 10);
+                this.currentQuestion.num1 = num1;
+                this.currentQuestion.num2 = num2;
+                this.currentQuestion.operator = operatorSymbol;                 
+                this.currentQuestion.answer = this.currentQuestion.num1 + this.currentQuestion.num2;
+                break;
+            case Operator.SUBTRACT:
+                const num1 = Phaser.Math.RND.pick(this.selectedTables);
+                const num2 = Phaser.Math.Between(1, 10);
+                this.currentQuestion.num1 = num1 > num2 ? num1 : num2;
+                this.currentQuestion.num2 = num1 > num2 ? num2 : num1;
+                this.currentQuestion.operator = operatorSymbol;                 
+                this.currentQuestion.answer = this.currentQuestion.num1 - this.currentQuestion.num2;
+                break;
+        }        
 
-        // Log for debugging
-        console.log(`New question for target: ${num1} x ${num2} = ${this.currentQuestion.answer}`);
+        // Display question
+        this.questionText.setText(`${num1} ${operatorSymbol} ${num2} = ?`);
+        this.questionText.setVisible(true);
+        this.inputText.setVisible(true);
+        this.updateInputText();
+        
+        // Debug log
+        console.log(`New question: ${num1} ${operatorSymbol} ${num2} = ${this.currentQuestion.answer}`);
 
         // Record start time for this question
         this.questionStartTime = Date.now();
