@@ -469,8 +469,8 @@ export default class GameScene extends Phaser.Scene {
         const operatorKeys = Object.keys(Operator);
         const randomOperatorKey = operatorKeys[Phaser.Math.Between(0, operatorKeys.length - 1)];
         const operatorSymbol = Operator[randomOperatorKey];        
-        let num1 = Phaser.Math.Between(1,100);
-        let num2 = Phaser.Math.Between(0,99-num1);
+        let num1 = Phaser.Math.Between(1,10);
+        let num2 = Phaser.Math.Between(0,9-num1);
         
         switch (operatorSymbol) {
             case Operator.MULTIPLY:
